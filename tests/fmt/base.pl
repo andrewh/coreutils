@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Basic tests for "fmt".
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,8 +18,9 @@
 
 use strict;
 
+my $limits = getlimits ();
+
 (my $program_name = $0) =~ s|.*/||;
-my $normalize_strerror = "s/': .*/'/";
 
 my @Tests =
     (
@@ -27,11 +28,10 @@ my @Tests =
       {IN=> "ça\nçb\n"},
       {OUT=>"ça b\n"}],
      ['wide-1', '-w 32768',
-      {ERR => "fmt: invalid width: '32768'\n"}, {EXIT => 1},
-      {ERR_SUBST => $normalize_strerror}],
+      {ERR => "fmt: invalid width: '32768': $limits->{ERANGE}\n"}, {EXIT => 1}],
      ['wide-2', '-w 2147483647',
-      {ERR => "fmt: invalid width: '2147483647'\n"}, {EXIT => 1},
-      {ERR_SUBST => $normalize_strerror}],
+      {ERR => "fmt: invalid width: '2147483647': $limits->{ERANGE}\n"},
+      {EXIT => 1}],
      ['bad-suffix', '-72x',	{IN=> ''},
       {ERR => "fmt: invalid width: '72x'\n"}, {EXIT => 1}],
      ['no-file', 'no-such-file',
@@ -58,6 +58,21 @@ my @Tests =
      ['pfx-of-pfx', qw (-p 'foo'),
       {IN=>  "fo\n"},
       {OUT=> "fo\n"}],
+
+     # With --prefix=P, a last line lacking the prefix is copied as is,
+     # without adding a missing newline.
+     ['pfx-no-nl-1', "-p '#'", {IN=> "x"}, {OUT=> "x"}],
+     ['pfx-no-nl-2', "-p '#'", {IN=> "  x"}, {OUT=> "  x"}],
+     ['pfx-no-nl-3', "-p '#'", {IN=> "a\nmixed"}, {OUT=> "a\nmixed"}],
+     ['pfx-no-nl-4', "-s -p '#'", {IN=> "a\nmixed"}, {OUT=> "a\nmixed"}],
+     # A last line with the prefix is reformatted and gets a newline.
+     ['pfx-no-nl-5', "-p '#'", {IN=> "# hi"}, {OUT=> "# hi\n"}],
+     ['pfx-no-nl-6', "-p '#'", {IN=> "x\n# hi"}, {OUT=> "x\n# hi\n"}],
+     ['pfx-no-nl-7', "-p '#'", {IN=> "x\n#"}, {OUT=> "x\n#\n"}],
+     # So with several files, that line runs into the next file.
+     ['pfx-no-nl-8', "-p '#'",
+      {IN=> {f1=> "a\nmixed"}}, {IN=> {f2=> "hello\n"}},
+      {OUT=> "a\nmixedhello\n"}],
 );
 
 my $save_temps = $ENV{DEBUG};

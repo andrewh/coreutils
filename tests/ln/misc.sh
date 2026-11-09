@@ -1,7 +1,7 @@
 #!/bin/sh
 # Miscellaneous tests for "ln".
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ ln
+getlimits_
 
 t=tln-symlink
 d=tln-subdir
@@ -96,6 +97,26 @@ ln --no-dereference -fs "$af" $ld || fail=1
 test -f $ld || fail=1
 rm -rf $d $f $ld
 
+# Test that 'ln -f' doesn't overwrite a file with a link when the
+# target does not exist.
+cat <<EOF >exp || framework_failure_
+ln: failed to access 'missing': $ENOENT
+EOF
+echo a > $f || framework_failure_
+cp $f exp-$f || framework_failure_
+returns_ 1 ln -f missing $f >out 2>err || fail=1
+compare /dev/null out || fail=1
+compare exp err || fail=1
+compare exp-$f $f || fail=1
+
+# -f on a existing file should not generate an error
+rm -rf $d $f
+touch $f || framework_failure_
+mkdir $d || framework_failure_
+ln $f $d
+ln -f $f $d || fail=1
+test -d $d || fail=1
+
 # Try to create a symlink with backup where the destination file exists
 # and the backup file name is a hard link to the destination file.
 touch a b || framework_failure_
@@ -120,5 +141,35 @@ done
 ln foo '' 2> /dev/null
 
 # ===================================================
+# Verify that -f and -i override each other, last one wins.
+
+# -sif: force should win (no prompt, overwrite)
+rm -f a b
+touch a b || framework_failure_
+ln -sif a b || fail=1
+test -L b || fail=1
+
+# -sfi: interactive should win; answering "n" should keep b unchanged
+rm -f a b
+touch a b || framework_failure_
+echo n | ln -sfi a b || :
+test -L b && fail=1
+
+# -sfi: interactive should win; answering "y" should create symlink
+rm -f a b
+touch a b || framework_failure_
+echo y | ln -sfi a b || fail=1
+test -L b || fail=1
+
+# ===================================================
+# --verbose uses '=>' for hard links and '->' for symlinks.
+rm -f a hard soft
+touch a || framework_failure_
+ln -v a hard > out || fail=1
+echo "'hard' => 'a'" > exp || framework_failure_
+compare exp out || fail=1
+ln -sv a soft > out || fail=1
+echo "'soft' -> 'a'" > exp || framework_failure_
+compare exp out || fail=1
 
 Exit $fail

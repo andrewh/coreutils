@@ -1,5 +1,5 @@
 /* 'rm' file deletion utility for GNU.
-   Copyright (C) 1988-2025 Free Software Foundation, Inc.
+   Copyright (C) 1988-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,32 +60,32 @@ enum interactive_type
 
 static struct option const long_opts[] =
 {
-  {"force", no_argument, nullptr, 'f'},
-  {"interactive", optional_argument, nullptr, INTERACTIVE_OPTION},
+  {"force", no_argument, NULL, 'f'},
+  {"interactive", optional_argument, NULL, INTERACTIVE_OPTION},
 
-  {"one-file-system", no_argument, nullptr, ONE_FILE_SYSTEM},
-  {"no-preserve-root", no_argument, nullptr, NO_PRESERVE_ROOT},
-  {"preserve-root", optional_argument, nullptr, PRESERVE_ROOT},
+  {"one-file-system", no_argument, NULL, ONE_FILE_SYSTEM},
+  {"no-preserve-root", no_argument, NULL, NO_PRESERVE_ROOT},
+  {"preserve-root", optional_argument, NULL, PRESERVE_ROOT},
 
   /* This is solely for testing.  Do not document.  */
   /* It is relatively difficult to ensure that there is a tty on stdin.
      Since rm acts differently depending on that, without this option,
      it'd be harder to test the parts of rm that depend on that setting.  */
-  {"-presume-input-tty", no_argument, nullptr, PRESUME_INPUT_TTY_OPTION},
+  {"-presume-input-tty", no_argument, NULL, PRESUME_INPUT_TTY_OPTION},
 
-  {"recursive", no_argument, nullptr, 'r'},
-  {"dir", no_argument, nullptr, 'd'},
-  {"verbose", no_argument, nullptr, 'v'},
+  {"recursive", no_argument, NULL, 'r'},
+  {"dir", no_argument, NULL, 'd'},
+  {"verbose", no_argument, NULL, 'v'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 static char const *const interactive_args[] =
 {
   "never", "no", "none",
   "once",
-  "always", "yes", nullptr
+  "always", "yes", NULL
 };
 static enum interactive_type const interactive_types[] =
 {
@@ -132,34 +132,56 @@ usage (int status)
       fputs (_("\
 Remove (unlink) the FILE(s).\n\
 \n\
-  -f, --force           ignore nonexistent files and arguments, never prompt\n\
-  -i                    prompt before every removal\n\
 "), stdout);
-      fputs (_("\
-  -I                    prompt once before removing more than three files, or\n\
-                          when removing recursively; less intrusive than -i,\n\
-                          while still giving protection against most mistakes\n\
-      --interactive[=WHEN]  prompt according to WHEN: never, once (-I), or\n\
-                          always (-i); without WHEN, prompt always\n\
-"), stdout);
-      fputs (_("\
-      --one-file-system  when removing a hierarchy recursively, skip any\n\
-                          directory that is on a file system different from\n\
-                          that of the corresponding command line argument\n\
-"), stdout);
-      fputs (_("\
-      --no-preserve-root  do not treat '/' specially\n\
-      --preserve-root[=all]  do not remove '/' (default);\n\
-                              with 'all', reject any command line argument\n\
-                              on a separate device from its parent\n\
-"), stdout);
-      fputs (_("\
-  -r, -R, --recursive   remove directories and their contents recursively\n\
-  -d, --dir             remove empty directories\n\
-  -v, --verbose         explain what is being done\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -f, --force\n\
+         ignore nonexistent files and arguments, never prompt\n\
+"));
+      oputs (_("\
+  -i\n\
+         prompt before every removal\n\
+"));
+      oputs (_("\
+  -I\n\
+         prompt once before removing more than three files,\n\
+         or when removing recursively; less intrusive than -i,\n\
+         while still giving protection against most mistakes\n\
+"));
+      oputs (_("\
+      --interactive[=WHEN]\n\
+         prompt according to WHEN: never, once (-I), or always (-i);\n\
+         without WHEN, prompt always\n\
+"));
+      oputs (_("\
+      --one-file-system\n\
+         when removing a hierarchy recursively,\n\
+         skip any directory that is on a file system different\n\
+         from that of the corresponding command line argument\n\
+"));
+      oputs (_("\
+      --no-preserve-root\n\
+         do not treat '/' specially\n\
+"));
+      oputs (_("\
+      --preserve-root[=all]\n\
+         do not remove '/' (default);\n\
+         with 'all', reject any command line argument\n\
+         on a separate device from its parent\n\
+"));
+      oputs (_("\
+  -r, -R, --recursive\n\
+         remove directories and their contents recursively\n\
+"));
+      oputs (_("\
+  -d, --dir\n\
+         remove empty directories\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         explain what is being done\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 By default, rm does not remove directories.  Use the --recursive (-r or -R)\n\
@@ -198,7 +220,7 @@ rm_option_init (struct rm_options *x)
   x->one_file_system = false;
   x->remove_empty_directories = false;
   x->recursive = false;
-  x->root_dev_ino = nullptr;
+  x->root_dev_ino = NULL;
   x->preserve_all_root = false;
   x->stdin_tty = isatty (STDIN_FILENO);
   x->verbose = false;
@@ -229,7 +251,7 @@ main (int argc, char **argv)
   /* Try to disable the ability to unlink a directory.  */
   priv_set_remove_linkdir ();
 
-  while ((c = getopt_long (argc, argv, "dfirvIR", long_opts, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "dfirvIR", long_opts, NULL)) != -1)
     {
       switch (c)
         {
@@ -295,7 +317,7 @@ main (int argc, char **argv)
           break;
 
         case NO_PRESERVE_ROOT:
-          if (! STREQ (argv[optind - 1], "--no-preserve-root"))
+          if (! streq (argv[optind - 1], "--no-preserve-root"))
             error (EXIT_FAILURE, 0,
                    _("you may not abbreviate the --no-preserve-root option"));
           preserve_root = false;
@@ -304,7 +326,7 @@ main (int argc, char **argv)
         case PRESERVE_ROOT:
           if (optarg)
             {
-              if STREQ (optarg, "all")
+              if (streq (optarg, "all"))
                 x.preserve_all_root = true;
               else
                 error (EXIT_FAILURE, 0,
@@ -345,7 +367,7 @@ main (int argc, char **argv)
     {
       static struct dev_ino dev_ino_buf;
       x.root_dev_ino = get_root_dev_ino (&dev_ino_buf);
-      if (x.root_dev_ino == nullptr)
+      if (x.root_dev_ino == NULL)
         error (EXIT_FAILURE, errno, _("failed to get attributes of %s"),
                quoteaf ("/"));
     }

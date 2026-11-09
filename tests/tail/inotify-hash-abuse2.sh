@@ -2,7 +2,7 @@
 # Exercise an abort-inducing flaw in inotify-enabled tail -F.
 # Like inotify-hash-abuse, but without a hard-coded "9".
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 print_ver_ tail
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 # Speedup the non inotify case
 fastpoll='-s.1 --max-unchanged-stats=1'

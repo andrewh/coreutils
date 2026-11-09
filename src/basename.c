@@ -1,5 +1,5 @@
 /* basename -- strip directory and suffix from file names
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+#include "argmatch.h"  /* argmatch($QUOTING_STYLE).  */
 #include "system.h"
 #include "quote.h"
 
@@ -27,14 +28,16 @@
 
 #define AUTHORS proper_name ("David MacKenzie")
 
+static bool quote_output;
+
 static struct option const longopts[] =
 {
-  {"multiple", no_argument, nullptr, 'a'},
-  {"suffix", required_argument, nullptr, 's'},
-  {"zero", no_argument, nullptr, 'z'},
+  {"multiple", no_argument, NULL, 'a'},
+  {"suffix", required_argument, NULL, 's'},
+  {"zero", no_argument, NULL, 'z'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -56,13 +59,20 @@ If specified, also remove a trailing SUFFIX.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -a, --multiple       support multiple arguments and treat each as a NAME\n\
-  -s, --suffix=SUFFIX  remove a trailing SUFFIX; implies -a\n\
-  -z, --zero           end each output line with NUL, not newline\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -a, --multiple\n\
+         support multiple arguments and treat each as a NAME\n\
+"));
+      oputs (_("\
+  -s, --suffix=SUFFIX\n\
+         remove a trailing SUFFIX; implies -a\n\
+"));
+      oputs (_("\
+  -z, --zero\n\
+         end each output line with NUL, not newline\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       printf (_("\
 \n\
 Examples:\n\
@@ -81,13 +91,10 @@ Examples:\n\
    consists entirely of SUFFIX.  */
 
 static void
-remove_suffix (char *name, char const *suffix)
+remove_suffix (char *name, char const *suffix, idx_t suffix_len)
 {
-  char *np;
-  char const *sp;
-
-  np = name + strlen (name);
-  sp = suffix + strlen (suffix);
+  char *np = name + strlen (name);
+  char const *sp = suffix + suffix_len;
 
   while (np > name && sp > suffix)
     if (*--np != *--sp)
@@ -96,11 +103,13 @@ remove_suffix (char *name, char const *suffix)
     *np = '\0';
 }
 
-/* Perform the basename operation on STRING.  If SUFFIX is non-null, remove
-   the trailing SUFFIX.  Finally, output the result string.  */
+/* Perform the basename operation on STRING.  If SUFFIX has a positive
+   length of SUFFIX_LEN bytes, remove the trailing SUFFIX.
+   Finally, output the result string.  */
 
 static void
-perform_basename (char const *string, char const *suffix, bool use_nuls)
+perform_basename (char const *string, char const *suffix, idx_t suffix_len,
+                  bool use_nuls)
 {
   char *name = base_name (string);
   strip_trailing_slashes (name);
@@ -111,10 +120,11 @@ perform_basename (char const *string, char const *suffix, bool use_nuls)
      skipping suffix stripping if base_name returned an absolute path
      or a drive letter (only possible if name is a file-system
      root).  */
-  if (suffix && IS_RELATIVE_FILE_NAME (name) && ! FILE_SYSTEM_PREFIX_LEN (name))
-    remove_suffix (name, suffix);
+  if (0 < suffix_len && IS_RELATIVE_FILE_NAME (name)
+      && ! FILE_SYSTEM_PREFIX_LEN (name))
+    remove_suffix (name, suffix, suffix_len);
 
-  fputs (name, stdout);
+  fputs (quote_output ? quoteN (name) : name, stdout);
   putchar (use_nuls ? '\0' : '\n');
   free (name);
 }
@@ -124,7 +134,7 @@ main (int argc, char **argv)
 {
   bool multiple_names = false;
   bool use_nuls = false;
-  char const *suffix = nullptr;
+  char const *suffix = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -136,7 +146,7 @@ main (int argc, char **argv)
 
   while (true)
     {
-      int c = getopt_long (argc, argv, "+as:z", longopts, nullptr);
+      int c = getopt_long (argc, argv, "+as:z", longopts, NULL);
 
       if (c == -1)
         break;
@@ -170,21 +180,36 @@ main (int argc, char **argv)
       usage (EXIT_FAILURE);
     }
 
-  if (!multiple_names && optind + 2 < argc)
+  if (! multiple_names)
     {
-      error (0, 0, _("extra operand %s"), quote (argv[optind + 2]));
-      usage (EXIT_FAILURE);
+      if (optind + 2 == argc)
+        suffix = argv[optind + 1];
+      else if (optind + 2 < argc)
+        {
+          error (0, 0, _("extra operand %s"), quote (argv[optind + 2]));
+          usage (EXIT_FAILURE);
+        }
     }
 
-  if (multiple_names)
+  if (!use_nuls && isatty (STDOUT_FILENO))
     {
-      for (; optind < argc; optind++)
-        perform_basename (argv[optind], suffix, use_nuls);
+      int qs = getenv_quoting_style ();
+      if (qs < 0)
+        qs = shell_escape_quoting_style;
+      if (qs != literal_quoting_style)
+        {
+          set_quoting_style (NULL, qs);
+          quote_output = true;
+        }
     }
-  else
-    perform_basename (argv[optind],
-                      optind + 2 == argc ? argv[optind + 1] : nullptr,
-                      use_nuls);
+
+  idx_t suffix_len = suffix ? strlen (suffix) : 0;
+
+  char **file = argv + optind;
+  int n_files = multiple_names ? argc - optind : 1;
+
+  for (int i = 0; i < n_files; ++i)
+    perform_basename (file[i], suffix, suffix_len, use_nuls);
 
   return EXIT_SUCCESS;
 }

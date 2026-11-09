@@ -1,5 +1,5 @@
 /* find-mount-point.c -- find the root mount point for a file.
-   Copyright (C) 2010-2025 Free Software Foundation, Inc.
+   Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,19 +24,19 @@
 
 /* Return the root mountpoint of the file system on which FILE exists, in
    malloced storage.  FILE_STAT should be the result of stating FILE.
-   Give a diagnostic and return nullptr if unable to determine the mount point.
+   Give a diagnostic and return NULL if unable to determine the mount point.
    Exit if unable to restore current working directory.  */
 extern char *
 find_mount_point (char const *file, struct stat const *file_stat)
 {
   struct saved_cwd cwd;
   struct stat last_stat;
-  char *mp = nullptr;		/* The malloc'd mount point.  */
+  char *mp = NULL;		/* The malloc'd mount point.  */
 
   if (save_cwd (&cwd) != 0)
     {
       error (0, errno, _("cannot get current directory"));
-      return nullptr;
+      return NULL;
     }
 
   if (S_ISDIR (file_stat->st_mode))
@@ -46,29 +46,30 @@ find_mount_point (char const *file, struct stat const *file_stat)
       if (chdir (file) < 0)
         {
           error (0, errno, _("cannot change to directory %s"), quoteaf (file));
-          return nullptr;
+          return NULL;
         }
     }
   else
     /* FILE is some other kind of file; use its directory.  */
     {
-      char *xdir = dir_name (file);
-      char *dir;
-      ASSIGN_STRDUPA (dir, xdir);
-      free (xdir);
+      char *dir = dir_name (file);
 
       if (chdir (dir) < 0)
         {
           error (0, errno, _("cannot change to directory %s"), quoteaf (dir));
-          return nullptr;
+          free (dir);
+          return NULL;
         }
 
       if (stat (".", &last_stat) < 0)
         {
           error (0, errno, _("cannot stat current directory (now %s)"),
                  quoteaf (dir));
+          free (dir);
           goto done;
         }
+
+      free (dir);
     }
 
   /* Now walk up FILE's parents until we find another file system or /,

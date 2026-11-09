@@ -1,5 +1,5 @@
-/* cksum -- calculate and print POSIX checksums and sizes of files
-   Copyright (C) 2024-2025 Free Software Foundation, Inc.
+/* cksum_crc -- calculate and print POSIX checksums and sizes of files
+   Copyright (C) 2024-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 #include <config.h>
 
-#include "cksum.h"
+#include "cksum_crc.h"
 
 #include <sys/types.h>
 #include <x86intrin.h>
@@ -26,11 +26,11 @@
 #define BUFLEN (1 << 16)
 
 bool
-cksum_avx512 (FILE *fp, uint_fast32_t *crc_out, uintmax_t *length_out)
+cksum_avx512 (FILE *fp, uint_fast32_t *crc_out, intmax_t *length_out)
 {
   __m512i buf[BUFLEN / sizeof (__m512i)];
   uint_fast32_t crc = 0;
-  uintmax_t length = 0;
+  intmax_t length = 0;
   size_t bytes_read;
   __m512i single_mult_constant;
   __m512i four_mult_constant;
@@ -75,14 +75,13 @@ cksum_avx512 (FILE *fp, uint_fast32_t *crc_out, uintmax_t *length_out)
 
       __m512i *datap;
 
-      if (length + bytes_read < length)
+      if (ckd_add (&length, length, bytes_read))
         {
           errno = EOVERFLOW;
           return false;
         }
-      length += bytes_read;
 
-      datap = (__m512i *)buf;
+      datap = buf;
 
       /* Fold in parallel 32x 16-byte blocks into 16x 16-byte blocks */
       if (bytes_read >= 16 * 8 * 4)

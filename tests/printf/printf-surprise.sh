@@ -1,7 +1,7 @@
 #!/bin/sh
 # Detect printf(3) failure even when it doesn't set stream error indicator
 
-# Copyright (C) 2007-2025 Free Software Foundation, Inc.
+# Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ trap_sigpipe_or_skip_
 export MALLOC_PERTURB_=0
 
 # Terminate any background process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 head -c 10 fifo > out & pid=$!
 

@@ -3,7 +3,7 @@
 # on directories with the setgid bit set.  Also, check that the GNU octal
 # notations work.
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ chmod g+s d 2> /dev/null && env -- test -g d ||
 
     for id_g in $(id -g) $(id -G) ''; do
       test -n "$id_g" || break
-      chgrp "$id_g" d && chmod g+s d && env -- test -g d && break
+      chgrp "+$id_g" d && chmod g+s d && env -- test -g d && break
     done
     test -n "$id_g"
   } ||

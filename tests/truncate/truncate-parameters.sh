@@ -1,7 +1,7 @@
 #!/bin/sh
 # Validate truncate parameter combinations
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -50,5 +50,9 @@ truncate -r file file || fail=1 #file still 3
 test $(stat --format %s file) = 3 || fail=1
 truncate -r file file2 || fail=1 #file2 now 3
 test $(stat --format %s file2) = 3 || fail=1
+
+# Ensure separated argument not parsed as option
+truncate -s -1 file || fail=1 #file now 2
+test $(stat --format %s file) = 2 || fail=1
 
 Exit $fail

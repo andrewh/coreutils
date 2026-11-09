@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise df's --output option.
 
-# Copyright (C) 2012-2025 Free Software Foundation, Inc.
+# Copyright (C) 2012-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -98,6 +98,24 @@ sed -e '1 {
         }' out > out2
 compare exp out2 || fail=1
 
+df -k --output=size '.' >out || fail=1
+sed -e '1 {
+          s/ *//
+          q
+        }' out > out2
+compare exp out2 || fail=1
+
+cat <<\EOF > exp || framework_failure_
+1M-blocks
+EOF
+
+df -m --output=size '.' >out || fail=1
+sed -e '1 {
+          s/ *//
+          q
+        }' out > out2
+compare exp out2 || fail=1
+
 # Ensure that the grand total line now contains a "-" in the TARGET field ...
 cat <<\EOF > exp || framework_failure_
 -
@@ -125,7 +143,7 @@ compare exp out2 || fail=1
 
 # Ensure that --output is mentioned in the usage.
 df --help > out || fail=1
-grep ' --output' out >/dev/null || { fail=1; cat out; }
+grep -- '--output' out >/dev/null || { fail=1; cat out; }
 
 # Ensure that the FILE field contains the argument.
 cat <<\EOF > exp || framework_failure_

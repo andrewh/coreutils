@@ -1,5 +1,5 @@
 /* pathchk -- check whether file names are valid or portable
-   Copyright (C) 1991-2025 Free Software Foundation, Inc.
+   Copyright (C) 1991-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -71,10 +71,10 @@ enum
 
 static struct option const longopts[] =
 {
-  {"portability", no_argument, nullptr, PORTABILITY_OPTION},
+  {"portability", no_argument, NULL, PORTABILITY_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -88,12 +88,19 @@ usage (int status)
       fputs (_("\
 Diagnose invalid or non-portable file names.\n\
 \n\
-  -p                  check for most POSIX systems\n\
-  -P                  check for empty names and leading \"-\"\n\
-      --portability   check for all POSIX systems (equivalent to -p -P)\n\
 "), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -p     check for most POSIX systems\n\
+"));
+      oputs (_("\
+  -P     check for empty names and leading \"-\"\n\
+"));
+      oputs (_("\
+      --portability\n\
+         check for all POSIX systems (equivalent to -p -P)\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -115,7 +122,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "+pP", longopts, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "+pP", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -160,9 +167,7 @@ main (int argc, char **argv)
 static bool
 no_leading_hyphen (char const *file)
 {
-  char const *p;
-
-  for (p = file;  (p = strchr (p, '-'));  p++)
+  for (char const *p = file;  (p = strchr (p, '-'));  p++)
     if (p == file || p[-1] == '/')
       {
         error (0, 0, _("leading '-' in a component of file name %s"),
@@ -250,9 +255,6 @@ validate_file_name (char *file, bool check_basic_portability,
 {
   idx_t filelen = strlen (file);
 
-  /* Start of file name component being checked.  */
-  char *start;
-
   /* True if component lengths need to be checked.  */
   bool check_component_lengths;
 
@@ -334,7 +336,7 @@ validate_file_name (char *file, bool check_basic_portability,
   check_component_lengths = check_basic_portability;
   if (! check_component_lengths && ! file_exists)
     {
-      for (start = file; *(start = component_start (start)); )
+      for (char *start = file; *(start = component_start (start)); )
         {
           size_t length = component_len (start);
 
@@ -359,7 +361,7 @@ validate_file_name (char *file, bool check_basic_portability,
       /* If nonzero, the known limit on file name components.  */
       idx_t known_name_max = check_basic_portability ? _POSIX_NAME_MAX : 0;
 
-      for (start = file; *(start = component_start (start)); )
+      for (char *start = file; *(start = component_start (start)); )
         {
           idx_t length;
 

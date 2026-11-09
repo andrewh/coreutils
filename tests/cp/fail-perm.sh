@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (C) 2000-2025 Free Software Foundation, Inc.
+# Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ cp
 skip_if_root_
+getlimits_
 
 chmod g-s . || framework_failure_
 mkdir D D/D || framework_failure_
@@ -37,28 +38,21 @@ test "$mode" = dr-x------ || fail=1
 chmod 0 D
 ln -s D/D symlink
 touch F
-cat > exp <<\EOF
-cp: cannot stat 'symlink': Permission denied
+cat > exp <<EOF
+cp: cannot stat 'symlink': $EACCES
 EOF
 
 cp F symlink 2> out && fail=1
-# HPUX appears to fail with EACCES rather than EPERM.
-# Transform their diagnostic
-#   ...: The file access permissions do not allow the specified action.
-# to the expected one:
-sed 's/: The file access permissions.*/: Permission denied/'<out>o1;mv o1 out
 compare exp out || fail=1
 
 cp --no-target-directory F symlink 2> out && fail=1
-sed 's/: The file access permissions.*/: Permission denied/'<out>o1;mv o1 out
 compare exp out || fail=1
 
-cat > exp <<\EOF
-cp: target directory 'symlink': Permission denied
+cat > exp <<EOF
+cp: target directory 'symlink': $EACCES
 EOF
 
 cp --target-directory=symlink F 2> out && fail=1
-sed 's/: The file access permissions.*/: Permission denied/'<out>o1;mv o1 out
 compare exp out || fail=1
 
 chmod 700 D

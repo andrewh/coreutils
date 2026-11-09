@@ -1,5 +1,5 @@
 /* Exit with a status code indicating success.
-   Copyright (C) 1999-2025 Free Software Foundation, Inc.
+   Copyright (C) 1999-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,17 +18,10 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include "system.h"
+#include "true.h"
 
-/* Act like "true" by default; false.c overrides this.  */
-#ifndef EXIT_STATUS
-# define EXIT_STATUS EXIT_SUCCESS
-#endif
-
-#if EXIT_STATUS == EXIT_SUCCESS
-# define PROGRAM_NAME "true"
-#else
-# define PROGRAM_NAME "false"
-#endif
+#define EXIT_STATUS (true_mode != TRUE_TRUE)
+#define PROGRAM_NAME (true_mode == TRUE_TRUE ? "true" : "false")
 
 #define AUTHORS proper_name ("Jim Meyering")
 
@@ -44,8 +37,8 @@ Usage: %s [ignored command line arguments]\n\
           _(EXIT_STATUS == EXIT_SUCCESS
             ? N_("Exit with a status code indicating success.")
             : N_("Exit with a status code indicating failure.")));
-  fputs (HELP_OPTION_DESCRIPTION, stdout);
-  fputs (VERSION_OPTION_DESCRIPTION, stdout);
+  oputs (HELP_OPTION_DESCRIPTION);
+  oputs (VERSION_OPTION_DESCRIPTION);
   printf (USAGE_BUILTIN_WARNING, PROGRAM_NAME);
   emit_ancillary_info (PROGRAM_NAME);
   exit (status);
@@ -68,12 +61,12 @@ main (int argc, char **argv)
          edge case where writes fail with GNU specific options.  */
       atexit (close_stdout);
 
-      if (STREQ (argv[1], "--help"))
+      if (streq (argv[1], "--help"))
         usage (EXIT_STATUS);
 
-      if (STREQ (argv[1], "--version"))
+      if (streq (argv[1], "--version"))
         version_etc (stdout, PROGRAM_NAME, PACKAGE_NAME, Version, AUTHORS,
-                     (char *) nullptr);
+                     (char *) NULL);
     }
 
   return EXIT_STATUS;

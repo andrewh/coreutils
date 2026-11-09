@@ -1,7 +1,7 @@
 #!/bin/sh
 # ensure that tail -f doesn't hang in various cases
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ echo oo > exp || framework_failure_
 echo foo | timeout 10 tail -f $mode $fastpoll -c3 > out || fail=1
 compare exp out || fail=1
 cat <<\EOF > exp || framework_failure_
-==> standard input <==
+==> 'standard input' <==
 ar
 EOF
 echo bar | returns_ 1 \
@@ -41,8 +41,8 @@ compare exp out || fail=1
 # Also check tail exits if SIGPIPE is being ignored.
 # Note 'trap - SIGPIPE' is ineffective if the initiating shell
 # has ignored SIGPIPE, but that's not the normal case.
-case $host_triplet in
-  *aix*) echo  'avoiding due to no way to detect closed outputs on AIX' ;;
+case $host_os in
+  aix*) echo  'avoiding due to no way to detect closed outputs on AIX' ;;
   *)
 for disposition in '' '-'; do
   (trap "$disposition" PIPE;

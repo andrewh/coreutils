@@ -1,7 +1,7 @@
 #!/bin/sh
 # make sure chgrp is reasonable
 
-# Copyright (C) 2000-2025 Free Software Foundation, Inc.
+# Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -98,11 +98,11 @@ chgrp $g1 f
 chgrp '' f
 test "$(ls -C -c -t f g)" = 'f  g' || \
   {
-    case $host_triplet in
-      *openbsd*) echo ignoring known OpenBSD-specific chgrp failure 1>&2 ;;
-      *darwin7.9.*|*darwin8.*)
+    case $host_os in
+      openbsd*) echo ignoring known OpenBSD-specific chgrp failure 1>&2 ;;
+      darwin7.9.*|darwin8.*)
         echo ignoring known MacOS X-specific chgrp failure 1>&2 ;;
-      *) echo $host_triplet: no-change chgrp failed to update ctime 1>&2;
+      *) echo $host_os: no-change chgrp failed to update ctime 1>&2;
             fail=1 ;;
     esac
   }

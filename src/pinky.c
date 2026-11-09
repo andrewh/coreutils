@@ -1,5 +1,5 @@
 /* GNU's pinky.
-   Copyright (C) 1992-2025 Free Software Foundation, Inc.
+   Copyright (C) 1992-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 /* Created by hacking who.c by Kaveh Ghazi ghazi@caip.rutgers.edu */
 
 #include <config.h>
-#include <ctype.h>
 #include <getopt.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -26,7 +25,11 @@
 #include "system.h"
 
 #include "canon-host.h"
+#include "fadvise.h"
+#include "filenamecat.h"
+#include "full-write.h"
 #include "hard-locale.h"
+#include "ioblksize.h"
 #include "readutmp.h"
 
 /* The official name of this program (e.g., no 'g' prefix).  */
@@ -82,10 +85,10 @@ enum
 
 static struct option const longopts[] =
 {
-  {"lookup", no_argument, nullptr, LOOKUP_OPTION},
+  {"lookup", no_argument, NULL, LOOKUP_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Count and return the number of ampersands in STR.  */
@@ -110,8 +113,6 @@ static char *
 create_fullname (char const *gecos_name, char const *user_name)
 {
   idx_t rsize = strlen (gecos_name) + 1;
-  char *result;
-  char *r;
   idx_t ampersands = count_ampersands (gecos_name);
 
   if (ampersands != 0)
@@ -123,7 +124,8 @@ create_fullname (char const *gecos_name, char const *user_name)
         xalloc_die ();
     }
 
-  r = result = xmalloc (rsize);
+  char *result = xmalloc (rsize);
+  char *r = result;
 
   while (*gecos_name)
     {
@@ -155,12 +157,11 @@ idle_string (time_t when)
 {
   static time_t now = 0;
   static char buf[INT_STRLEN_BOUND (intmax_t) + sizeof "d"];
-  time_t seconds_idle;
 
   if (now == 0)
     time (&now);
 
-  seconds_idle = now - when;
+  time_t seconds_idle = now - when;
   if (seconds_idle < 60)	/* One minute. */
     return "     ";
   if (seconds_idle < (24 * 60 * 60))	/* One day. */
@@ -179,7 +180,7 @@ idle_string (time_t when)
 
 /* Return a time string.  */
 static char const *
-time_string (struct gl_utmp const *utmp_ent)
+time_string (STRUCT_UTMP const *utmp_ent)
 {
   static char buf[INT_STRLEN_BOUND (intmax_t) + sizeof "-%m-%d %H:%M"];
   struct tm *tmp = localtime (&utmp_ent->ut_ts.tv_sec);
@@ -196,12 +197,8 @@ time_string (struct gl_utmp const *utmp_ent)
 /* Display a line of information about UTMP_ENT. */
 
 static void
-print_entry (struct gl_utmp const *utmp_ent)
+print_entry (STRUCT_UTMP const *utmp_ent)
 {
-  struct stat stats;
-  time_t last_change;
-  char mesg;
-
   /* If ut_line contains a space, the device name starts after the space.  */
   char *line = utmp_ent->ut_line;
   char *space = strchr (line, ' ');
@@ -222,6 +219,9 @@ print_entry (struct gl_utmp const *utmp_ent)
       dirfd = dev_dirfd;
     }
 
+  struct stat stats;
+  time_t last_change;
+  char mesg;
   if (AT_FDCWD <= dirfd && fstatat (dirfd, line, &stats, 0) == 0)
     {
       mesg = (stats.st_mode & S_IWGRP) ? ' ' : '*';
@@ -242,18 +242,17 @@ print_entry (struct gl_utmp const *utmp_ent)
   if (include_fullname)
     {
       struct passwd *pw = getpwnam (ut_user);
-      if (pw == nullptr)
+      if (pw == NULL)
         /* TRANSLATORS: Real name is unknown; at most 19 characters. */
         printf (" %19s", _("        ???"));
       else
         {
           char *const comma = strchr (pw->pw_gecos, ',');
-          char *result;
 
           if (comma)
             *comma = '\0';
 
-          result = create_fullname (pw->pw_gecos, pw->pw_name);
+          char *result = create_fullname (pw->pw_gecos, pw->pw_name);
           printf (" %-19.19s", result);
           free (result);
         }
@@ -280,15 +279,14 @@ print_entry (struct gl_utmp const *utmp_ent)
 #ifdef HAVE_STRUCT_XTMP_UT_HOST
   if (include_where && utmp_ent->ut_host[0])
     {
-      char *host = nullptr;
-      char *display = nullptr;
       char *ut_host = utmp_ent->ut_host;
 
       /* Look for an X display.  */
-      display = strchr (ut_host, ':');
+      char *display = strchr (ut_host, ':');
       if (display)
         *display++ = '\0';
 
+      char *host = NULL;
       if (*ut_host && do_lookup)
         /* See if we can canonicalize it.  */
         host = canon_host (ut_host);
@@ -309,6 +307,35 @@ print_entry (struct gl_utmp const *utmp_ent)
 #endif
 
   putchar ('\n');
+
+  if (ferror (stdout))
+    write_error ();
+}
+
+/* If FILE exists in HOME, print it to standard output, preceded by HEADER. */
+
+static void
+cat_file (char const *header, char const *home, char const *file)
+{
+  char *full_name = file_name_concat (home, file, NULL);
+  FILE *fp = fopen (full_name, "r");
+
+  if (fp)
+    {
+      fputs (header, stdout);
+
+      fadvise (fp, FADVISE_SEQUENTIAL);
+
+      char buf[BUFSIZ];
+      for (size_t bytes_read;
+           0 < (bytes_read = fread (buf, 1, sizeof buf, fp));)
+        if (fwrite (buf, 1, bytes_read, stdout) != bytes_read)
+          write_error ();
+
+      fclose (fp);
+    }
+
+  free (full_name);
 }
 
 /* Display a verbose line of information about UTMP_ENT. */
@@ -316,15 +343,13 @@ print_entry (struct gl_utmp const *utmp_ent)
 static void
 print_long_entry (const char name[])
 {
-  struct passwd *pw;
-
-  pw = getpwnam (name);
+  struct passwd *pw = getpwnam (name);
 
   printf (_("Login name: "));
   printf ("%-28s", name);
 
   printf (_("In real life: "));
-  if (pw == nullptr)
+  if (pw == NULL)
     {
       /* TRANSLATORS: Real name is unknown; no hard limit. */
       printf (" %s", _("???\n"));
@@ -333,12 +358,11 @@ print_long_entry (const char name[])
   else
     {
       char *const comma = strchr (pw->pw_gecos, ',');
-      char *result;
 
       if (comma)
         *comma = '\0';
 
-      result = create_fullname (pw->pw_gecos, pw->pw_name);
+      char *result = create_fullname (pw->pw_gecos, pw->pw_name);
       printf (" %s", result);
       free (result);
     }
@@ -355,54 +379,15 @@ print_long_entry (const char name[])
     }
 
   if (include_project)
-    {
-      FILE *stream;
-      char buf[1024];
-      char const *const baseproject = "/.project";
-      char *const project =
-        xmalloc (strlen (pw->pw_dir) + strlen (baseproject) + 1);
-      stpcpy (stpcpy (project, pw->pw_dir), baseproject);
-
-      stream = fopen (project, "r");
-      if (stream)
-        {
-          size_t bytes;
-
-          printf (_("Project: "));
-
-          while ((bytes = fread (buf, 1, sizeof (buf), stream)) > 0)
-            fwrite (buf, 1, bytes, stdout);
-          fclose (stream);
-        }
-
-      free (project);
-    }
+    cat_file (_("Project: "), pw->pw_dir, ".project");
 
   if (include_plan)
-    {
-      FILE *stream;
-      char buf[1024];
-      char const *const baseplan = "/.plan";
-      char *const plan =
-        xmalloc (strlen (pw->pw_dir) + strlen (baseplan) + 1);
-      stpcpy (stpcpy (plan, pw->pw_dir), baseplan);
-
-      stream = fopen (plan, "r");
-      if (stream)
-        {
-          size_t bytes;
-
-          printf (_("Plan:\n"));
-
-          while ((bytes = fread (buf, 1, sizeof (buf), stream)) > 0)
-            fwrite (buf, 1, bytes, stdout);
-          fclose (stream);
-        }
-
-      free (plan);
-    }
+    cat_file (_("Plan:\n"), pw->pw_dir, ".plan");
 
   putchar ('\n');
+
+  if (ferror (stdout))
+    write_error ();
 }
 
 /* Print the username of each valid entry and the number of valid entries
@@ -428,7 +413,7 @@ print_heading (void)
 /* Display UTMP_BUF, which should have N entries. */
 
 static void
-scan_entries (idx_t n, struct gl_utmp const *utmp_buf,
+scan_entries (idx_t n, STRUCT_UTMP const *utmp_buf,
               const int argc_names, char *const argv_names[])
 {
   if (hard_locale (LC_TIME))
@@ -452,7 +437,7 @@ scan_entries (idx_t n, struct gl_utmp const *utmp_buf,
           if (argc_names)
             {
               for (int i = 0; i < argc_names; i++)
-                if (STREQ (utmp_buf->ut_user, argv_names[i]))
+                if (streq (utmp_buf->ut_user, argv_names[i]))
                   {
                     print_entry (utmp_buf);
                     break;
@@ -472,7 +457,7 @@ short_pinky (char const *filename,
              const int argc_names, char *const argv_names[])
 {
   idx_t n_users;
-  struct gl_utmp *utmp_buf;
+  STRUCT_UTMP *utmp_buf;
   if (read_utmp (filename, &n_users, &utmp_buf, READ_UTMP_USER_PROCESS) != 0)
     error (EXIT_FAILURE, errno, "%s", quotef (filename));
 
@@ -497,24 +482,40 @@ usage (int status)
       printf (_("Usage: %s [OPTION]... [USER]...\n"), program_name);
       fputs (_("\
 \n\
-  -l              produce long format output for the specified USERs\n\
-  -b              omit the user's home directory and shell in long format\n\
-  -h              omit the user's project file in long format\n\
-  -p              omit the user's plan file in long format\n\
-  -s              do short format output, this is the default\n\
 "), stdout);
-      fputs (_("\
-  -f              omit the line of column headings in short format\n\
-  -w              omit the user's full name in short format\n\
-  -i              omit the user's full name and remote host in short format\n\
-  -q              omit the user's full name, remote host and idle time\n\
-                  in short format\n\
-"), stdout);
-      fputs (_("\
-      --lookup    attempt to canonicalize hostnames via DNS\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -l     produce long format output for the specified USERs\n\
+"));
+      oputs (_("\
+  -b     omit the user's home directory and shell in long format\n\
+"));
+      oputs (_("\
+  -h     omit the user's project file in long format\n\
+"));
+      oputs (_("\
+  -p     omit the user's plan file in long format\n\
+"));
+      oputs (_("\
+  -s     do short format output, this is the default\n\
+"));
+      oputs (_("\
+  -f     omit the line of column headings in short format\n\
+"));
+      oputs (_("\
+  -w     omit the user's full name in short format\n\
+"));
+      oputs (_("\
+  -i     omit the user's full name and remote host in short format\n\
+"));
+      oputs (_("\
+  -q     omit the user's full name, remote host and idle time in short format\n\
+"));
+      oputs (_("\
+      --lookup\n\
+         attempt to canonicalize hostnames via DNS\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       printf (_("\
 \n\
 A lightweight 'finger' program;  print user information.\n\
@@ -528,9 +529,6 @@ The utmp file will be %s.\n\
 int
 main (int argc, char **argv)
 {
-  int optc;
-  int n_users;
-
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
   setlocale (LC_ALL, "");
@@ -539,7 +537,8 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "sfwiqbhlp", longopts, nullptr))
+  int optc;
+  while ((optc = getopt_long (argc, argv, "sfwiqbhlp", longopts, NULL))
          != -1)
     {
       switch (optc)
@@ -600,7 +599,7 @@ main (int argc, char **argv)
         }
     }
 
-  n_users = argc - optind;
+  int n_users = argc - optind;
 
   if (!do_short_format && n_users == 0)
     {

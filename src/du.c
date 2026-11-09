@@ -1,5 +1,5 @@
 /* du -- summarize device usage
-   Copyright (C) 1988-2025 Free Software Foundation, Inc.
+   Copyright (C) 1988-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,12 +26,13 @@
 #include <config.h>
 #include <getopt.h>
 #include <sys/types.h>
+#include "argmatch.h"  /* argmatch($QUOTING_STYLE).  */
 #include "system.h"
-#include "argmatch.h"
 #include "argv-iter.h"
 #include "assure.h"
 #include "di-set.h"
 #include "exclude.h"
+#include "fts-missing.h"
 #include "human.h"
 #include "mountlist.h"
 #include "quote.h"
@@ -40,6 +41,7 @@
 #include "stat-time.h"
 #include "stdio--.h"
 #include "xfts.h"
+#include "xmemdup0.h"
 #include "xstrtol.h"
 #include "xstrtol-error.h"
 
@@ -133,6 +135,9 @@ static bool hash_all;
 /* If true, output the NUL byte instead of a newline at the end of each line. */
 static bool opt_nul_terminate_output = false;
 
+/* If true, quote output pathnames according to the selected quoting style.  */
+static bool quote_output;
+
 /* If true, print a grand total at the end.  */
 static bool print_grand_total = false;
 
@@ -169,10 +174,10 @@ enum time_type
 static enum time_type time_type = time_mtime;
 
 /* User specified date / time style */
-static char const *time_style = nullptr;
+static char const *time_style = NULL;
 
 /* Format used to display date / time. Controlled by --time-style */
-static char const *time_format = nullptr;
+static char const *time_format = NULL;
 
 /* The local time zone rules, as per the TZ environment variable.  */
 static timezone_t localtz;
@@ -194,8 +199,7 @@ static struct duinfo tot_dui;
    non-character as a pseudo short option, starting with CHAR_MAX + 1.  */
 enum
 {
-  APPARENT_SIZE_OPTION = CHAR_MAX + 1,
-  EXCLUDE_OPTION,
+  EXCLUDE_OPTION = CHAR_MAX + 1,
   FILES0_FROM_OPTION,
   HUMAN_SI_OPTION,
 #if GNULIB_FTS_DEBUG
@@ -208,40 +212,40 @@ enum
 
 static struct option const long_options[] =
 {
-  {"all", no_argument, nullptr, 'a'},
-  {"apparent-size", no_argument, nullptr, APPARENT_SIZE_OPTION},
-  {"block-size", required_argument, nullptr, 'B'},
-  {"bytes", no_argument, nullptr, 'b'},
-  {"count-links", no_argument, nullptr, 'l'},
+  {"all", no_argument, NULL, 'a'},
+  {"apparent-size", no_argument, NULL, 'A'},
+  {"block-size", required_argument, NULL, 'B'},
+  {"bytes", no_argument, NULL, 'b'},
+  {"count-links", no_argument, NULL, 'l'},
 #if GNULIB_FTS_DEBUG
-  {"-debug", no_argument, nullptr, FTS_DEBUG},
+  {"-debug", no_argument, NULL, FTS_DEBUG},
 #endif
-  {"dereference", no_argument, nullptr, 'L'},
-  {"dereference-args", no_argument, nullptr, 'D'},
-  {"exclude", required_argument, nullptr, EXCLUDE_OPTION},
-  {"exclude-from", required_argument, nullptr, 'X'},
-  {"files0-from", required_argument, nullptr, FILES0_FROM_OPTION},
-  {"human-readable", no_argument, nullptr, 'h'},
-  {"inodes", no_argument, nullptr, INODES_OPTION},
-  {"si", no_argument, nullptr, HUMAN_SI_OPTION},
-  {"max-depth", required_argument, nullptr, 'd'},
-  {"null", no_argument, nullptr, '0'},
-  {"no-dereference", no_argument, nullptr, 'P'},
-  {"one-file-system", no_argument, nullptr, 'x'},
-  {"separate-dirs", no_argument, nullptr, 'S'},
-  {"summarize", no_argument, nullptr, 's'},
-  {"total", no_argument, nullptr, 'c'},
-  {"threshold", required_argument, nullptr, 't'},
-  {"time", optional_argument, nullptr, TIME_OPTION},
-  {"time-style", required_argument, nullptr, TIME_STYLE_OPTION},
+  {"dereference", no_argument, NULL, 'L'},
+  {"dereference-args", no_argument, NULL, 'D'},
+  {"exclude", required_argument, NULL, EXCLUDE_OPTION},
+  {"exclude-from", required_argument, NULL, 'X'},
+  {"files0-from", required_argument, NULL, FILES0_FROM_OPTION},
+  {"human-readable", no_argument, NULL, 'h'},
+  {"inodes", no_argument, NULL, INODES_OPTION},
+  {"si", no_argument, NULL, HUMAN_SI_OPTION},
+  {"max-depth", required_argument, NULL, 'd'},
+  {"null", no_argument, NULL, '0'},
+  {"no-dereference", no_argument, NULL, 'P'},
+  {"one-file-system", no_argument, NULL, 'x'},
+  {"separate-dirs", no_argument, NULL, 'S'},
+  {"summarize", no_argument, NULL, 's'},
+  {"total", no_argument, NULL, 'c'},
+  {"threshold", required_argument, NULL, 't'},
+  {"time", optional_argument, NULL, TIME_OPTION},
+  {"time-style", required_argument, NULL, TIME_STYLE_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 static char const *const time_args[] =
 {
-  "atime", "access", "use", "ctime", "status", nullptr
+  "atime", "access", "use", "ctime", "status", NULL
 };
 static enum time_type const time_types[] =
 {
@@ -261,7 +265,7 @@ enum time_style
 
 static char const *const time_style_args[] =
 {
-  "full-iso", "long-iso", "iso", nullptr
+  "full-iso", "long-iso", "iso", NULL
 };
 static enum time_style const time_style_types[] =
 {
@@ -286,69 +290,134 @@ Summarize device usage of the set of FILEs, recursively for directories.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -0, --null            end each output line with NUL, not newline\n\
-  -a, --all             write counts for all files, not just directories\n\
-      --apparent-size   print apparent sizes rather than device usage; although\
-\n\
-                          the apparent size is usually smaller, it may be\n\
-                          larger due to holes in ('sparse') files, internal\n\
-                          fragmentation, indirect blocks, and the like\n\
-"), stdout);
-      fputs (_("\
-  -B, --block-size=SIZE  scale sizes by SIZE before printing them; e.g.,\n\
-                           '-BM' prints sizes in units of 1,048,576 bytes;\n\
-                           see SIZE format below\n\
-  -b, --bytes           equivalent to '--apparent-size --block-size=1'\n\
-  -c, --total           produce a grand total\n\
-  -D, --dereference-args  dereference only symlinks that are listed on the\n\
-                          command line\n\
-  -d, --max-depth=N     print the total for a directory (or file, with --all)\n\
-                          only if it is N or fewer levels below the command\n\
-                          line argument;  --max-depth=0 is the same as\n\
-                          --summarize\n\
-"), stdout);
-      fputs (_("\
-      --files0-from=F   summarize device usage of the\n\
-                          NUL-terminated file names specified in file F;\n\
-                          if F is -, then read names from standard input\n\
-  -H                    equivalent to --dereference-args (-D)\n\
-  -h, --human-readable  print sizes in human readable format (e.g., 1K 234M 2G)\
-\n\
-      --inodes          list inode usage information instead of block usage\n\
-"), stdout);
-      fputs (_("\
-  -k                    like --block-size=1K\n\
-  -L, --dereference     dereference all symbolic links\n\
-  -l, --count-links     count sizes many times if hard linked\n\
-  -m                    like --block-size=1M\n\
-"), stdout);
-      fputs (_("\
-  -P, --no-dereference  don't follow any symbolic links (this is the default)\n\
-  -S, --separate-dirs   for directories do not include size of subdirectories\n\
-      --si              like -h, but use powers of 1000 not 1024\n\
-  -s, --summarize       display only a total for each argument\n\
-"), stdout);
-      fputs (_("\
-  -t, --threshold=SIZE  exclude entries smaller than SIZE if positive,\n\
-                          or entries greater than SIZE if negative\n\
-      --time            show time of the last modification of any file in the\n\
-                          directory, or any of its subdirectories\n\
-      --time=WORD       show time as WORD instead of modification time:\n\
-                          atime, access, use, ctime or status\n\
-      --time-style=STYLE  show times using STYLE, which can be:\n\
-                            full-iso, long-iso, iso, or +FORMAT;\n\
-                            FORMAT is interpreted like in 'date'\n\
-"), stdout);
-      fputs (_("\
-  -X, --exclude-from=FILE  exclude files that match any pattern in FILE\n\
-      --exclude=PATTERN    exclude files that match PATTERN\n\
-  -x, --one-file-system    skip directories on different file systems\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -0, --null\n\
+         end each output line with NUL, not newline\n\
+"));
+      oputs (_("\
+  -a, --all\n\
+         write counts for all files, not just directories\n\
+"));
+      oputs (_("\
+  -A, --apparent-size\n\
+         print apparent sizes rather than device usage;\n\
+         although the apparent size is usually smaller, it may be\n\
+         larger due to holes in ('sparse') files,\n\
+         internal fragmentation, indirect blocks, etc.\n\
+"));
+      oputs (_("\
+  -B, --block-size=SIZE\n\
+         scale sizes by SIZE before printing them; See SIZE format below;\n\
+         E.g., '-BM' prints sizes in units of 1,048,576 bytes\n\
+"));
+      oputs (_("\
+  -b, --bytes\n\
+         equivalent to '--apparent-size --block-size=1'\n\
+"));
+      oputs (_("\
+  -c, --total\n\
+         produce a grand total\n\
+"));
+      oputs (_("\
+  -D, --dereference-args\n\
+         dereference only symlinks that are listed on the command line\n\
+"));
+      oputs (_("\
+  -d, --max-depth=N\n\
+         print the total for a directory (or file, with --all)\n\
+         only if it is N or fewer levels below the command\n\
+         line argument;  --max-depth=0 is the same as --summarize\n\
+"));
+      oputs (_("\
+      --files0-from=F\n\
+         summarize device usage of the NUL-terminated file names\n\
+         specified in file F;  if F is -, read names from standard input\n\
+"));
+      oputs (_("\
+  -H\n\
+         equivalent to --dereference-args (-D)\n\
+"));
+      oputs (_("\
+  -h, --human-readable\n\
+         print sizes in human readable format (e.g., 1K 234M 2G)\n\
+"));
+      oputs (_("\
+      --inodes\n\
+         list inode usage information instead of block usage\n\
+"));
+      oputs (_("\
+  -k\n\
+         like --block-size=1K\n\
+"));
+      oputs (_("\
+  -L, --dereference\n\
+         dereference all symbolic links\n\
+"));
+      oputs (_("\
+  -l, --count-links\n\
+         count sizes many times if hard linked\n\
+"));
+      oputs (_("\
+  -m\n\
+         like --block-size=1M\n\
+"));
+      oputs (_("\
+  -P, --no-dereference\n\
+         don't follow any symbolic links (this is the default)\n\
+"));
+      oputs (_("\
+  -S, --separate-dirs\n\
+         for directories do not include size of subdirectories\n\
+"));
+      oputs (_("\
+      --si\n\
+         like -h, but use powers of 1000 not 1024\n\
+"));
+      oputs (_("\
+  -s, --summarize\n\
+         display only a total for each argument\n\
+"));
+      oputs (_("\
+  -t, --threshold=SIZE\n\
+         exclude entries smaller than SIZE if positive,\n\
+         or entries greater than SIZE if negative\n\
+"));
+      oputs (_("\
+      --time\n\
+         show time of the last modification of any file in the directory,\n\
+         or any of its subdirectories\n\
+"));
+      oputs (_("\
+      --time=WORD\n\
+         show time as WORD instead of modification time:\n\
+         atime, access, use, ctime or status\n\
+"));
+      oputs (_("\
+      --time-style=STYLE\n\
+         time/date format with --time; see TIME_STYLE below\n\
+"));
+      oputs (_("\
+  -X, --exclude-from=FILE\n\
+         exclude files that match any pattern in FILE\n\
+"));
+      oputs (_("\
+      --exclude=PATTERN\n\
+         exclude files that match PATTERN\n\
+"));
+      oputs (_("\
+  -x, --one-file-system\n\
+         skip directories on different file systems\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_blocksize_note ("DU");
       emit_size_note ();
+      fputs (_("\
+\n\
+The --time-style STYLE argument can be full-iso, long-iso, iso, or +FORMAT.\n\
+FORMAT is interpreted like in date(1).\n\
+Also the TIME_STYLE environment variable sets the default style to use.\n\
+"), stdout);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -379,10 +448,11 @@ print_only_size (uintmax_t n_bytes)
          stdout);
 }
 
-/* Print size (and optionally time) indicated by *PDUI, followed by STRING.  */
+/* Print size (and optionally time) indicated by *PDUI, followed by STRING,
+   quoting STRING if QUOTE is true.  */
 
 static void
-print_size (const struct duinfo *pdui, char const *string)
+print_size (const struct duinfo *pdui, char const *string, bool quote)
 {
   print_only_size (opt_inodes
                    ? pdui->inodes
@@ -399,8 +469,11 @@ print_size (const struct duinfo *pdui, char const *string)
           fputs (timetostr (pdui->tmax.tv_sec, buf), stdout);
         }
     }
-  printf ("\t%s%c", string, opt_nul_terminate_output ? '\0' : '\n');
-  fflush (stdout);
+  putchar ('\t');
+  fputs (quote ? quoteN (string) : string, stdout);
+  putchar (opt_nul_terminate_output ? '\0' : '\n');
+  if (fflush (stdout) < 0)
+    write_error ();
 }
 
 /* Fill the di_mnt set with local mount point dev/ino pairs.  */
@@ -486,6 +559,10 @@ process_file (FTS *fts, FTSENT *ent)
   char const *file = ent->fts_path;
   const struct stat *sb = ent->fts_statp;
   int info = ent->fts_info;
+  bool ignore_missing = ignore_missing_fts_entry (ent);
+
+  if (ignore_missing && ignorable_fts_error (ent))
+    return true;
 
   if (info == FTS_DNR)
     {
@@ -506,6 +583,9 @@ process_file (FTS *fts, FTSENT *ent)
               MAYBE_UNUSED FTSENT const *e = fts_read (fts);
               affirm (e == ent);
               info = ent->fts_info;
+
+              if (ignore_missing && ignorable_fts_error (ent))
+                return true;
             }
 
           if (info == FTS_NS || info == FTS_SLNONE)
@@ -642,7 +722,7 @@ process_file (FTS *fts, FTSENT *ent)
       if (opt_threshold < 0
           ? v <= -opt_threshold
           : v >= opt_threshold)
-        print_size (&dui_to_print, file);
+        print_size (&dui_to_print, file, quote_output);
     }
 
   return ok;
@@ -660,14 +740,14 @@ du_files (char **files, int bit_flags)
 
   if (*files)
     {
-      FTS *fts = xfts_open (files, bit_flags, nullptr);
+      FTS *fts = xfts_open (files, bit_flags, NULL);
 
       while (true)
         {
           FTSENT *ent;
 
           ent = fts_read (fts);
-          if (ent == nullptr)
+          if (ent == NULL)
             {
               if (errno != 0)
                 {
@@ -707,7 +787,7 @@ main (int argc, char **argv)
   char *cwd_only[2];
   bool max_depth_specified = false;
   bool ok = true;
-  char *files_from = nullptr;
+  char *files_from = NULL;
 
   /* Bit flags that control how fts works.  */
   int bit_flags = FTS_NOSTAT;
@@ -720,7 +800,7 @@ main (int argc, char **argv)
   bool opt_summarize_only = false;
 
   cwd_only[0] = bad_cast (".");
-  cwd_only[1] = nullptr;
+  cwd_only[1] = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -738,7 +818,7 @@ main (int argc, char **argv)
   while (true)
     {
       int oi = -1;
-      int c = getopt_long (argc, argv, "0abd:chHklmst:xB:DLPSX:",
+      int c = getopt_long (argc, argv, "0aAbd:chHklmst:xB:DLPSX:",
                            long_options, &oi);
       if (c == -1)
         break;
@@ -759,7 +839,7 @@ main (int argc, char **argv)
           opt_all = true;
           break;
 
-        case APPARENT_SIZE_OPTION:
+        case 'A':
           apparent_size = true;
           break;
 
@@ -791,12 +871,9 @@ main (int argc, char **argv)
         case 'd':		/* --max-depth=N */
           {
             intmax_t tmp;
-            if (xstrtoimax (optarg, nullptr, 0, &tmp, "") == LONGINT_OK
-                && tmp <= IDX_MAX)
-              {
-                max_depth_specified = true;
-                max_depth = tmp;
-              }
+            if (xstrtoimax (optarg, NULL, 0, &tmp, "") == LONGINT_OK
+                && ! ckd_add (&max_depth, tmp, 0) && 0 <= max_depth)
+              max_depth_specified = true;
             else
               {
                 error (0, 0, _("invalid maximum depth %s"),
@@ -822,7 +899,7 @@ main (int argc, char **argv)
         case 't':
           {
             enum strtol_error e;
-            e = xstrtoimax (optarg, nullptr, 0, &opt_threshold,
+            e = xstrtoimax (optarg, NULL, 0, &opt_threshold,
                             "kKmMGTPEZYRQ0");
             if (e != LONGINT_OK)
               xstrtol_fatal (e, oi, c, long_options, optarg);
@@ -910,6 +987,18 @@ main (int argc, char **argv)
   if (!ok)
     usage (EXIT_FAILURE);
 
+  if (!opt_nul_terminate_output && isatty (STDOUT_FILENO))
+    {
+      int qs = getenv_quoting_style ();
+      if (qs < 0)
+        qs = shell_escape_quoting_style;
+      if (qs != literal_quoting_style)
+        {
+          set_quoting_style (NULL, qs);
+          quote_output = true;
+        }
+    }
+
   if (opt_all && opt_summarize_only)
     {
       error (0, 0, _("cannot both summarize and show all entries"));
@@ -950,15 +1039,15 @@ main (int argc, char **argv)
           time_style = getenv ("TIME_STYLE");
 
           /* Ignore TIMESTYLE="locale", for compatibility with ls.  */
-          if (! time_style || STREQ (time_style, "locale"))
+          if (! time_style || streq (time_style, "locale"))
             time_style = "long-iso";
           else if (*time_style == '+')
             {
               /* Ignore anything after a newline, for compatibility
                  with ls.  */
-              char *p = strchr (time_style, '\n');
+              char const *p = strchr (time_style, '\n');
               if (p)
-                *p = '\0';
+                time_style = xmemdup0 (time_style, p - time_style);
             }
           else
             {
@@ -974,8 +1063,10 @@ main (int argc, char **argv)
         time_format = time_style + 1;
       else
         {
-          switch (XARGMATCH ("time style", time_style,
-                             time_style_args, time_style_types))
+          switch (x_timestyle_match (time_style, /*allow_posix=*/ false,
+                                     time_style_args,
+                                     (char const *) time_style_types,
+                                     sizeof (*time_style_types), EXIT_FAILURE))
             {
             case full_iso_time_style:
               time_format = "%Y-%m-%d %H:%M:%S.%N %z";
@@ -1005,7 +1096,7 @@ main (int argc, char **argv)
           usage (EXIT_FAILURE);
         }
 
-      if (! (STREQ (files_from, "-") || freopen (files_from, "r", stdin)))
+      if (! (streq (files_from, "-") || freopen (files_from, "r", stdin)))
         error (EXIT_FAILURE, errno, _("cannot open %s for reading"),
                quoteaf (files_from));
 
@@ -1040,7 +1131,7 @@ main (int argc, char **argv)
     bit_flags |= FTS_TIGHT_CYCLE_CHECK;
 
   bit_flags |= symlink_deref_bits;
-  static char *temp_argv[] = { nullptr, nullptr };
+  static char *temp_argv[] = { NULL, NULL };
 
   while (true)
     {
@@ -1064,11 +1155,11 @@ main (int argc, char **argv)
               affirm (!"unexpected error code from argv_iter");
             }
         }
-      if (files_from && STREQ (files_from, "-") && STREQ (file_name, "-"))
+      if (files_from && streq (files_from, "-") && streq (file_name, "-"))
         {
           /* Give a better diagnostic in an unusual case:
              printf - | du --files0-from=- */
-          error (0, 0, _("when reading file names from stdin, "
+          error (0, 0, _("when reading file names from standard input, "
                          "no file name of %s allowed"),
                  quoteaf (file_name));
           skip_file = true;
@@ -1084,7 +1175,7 @@ main (int argc, char **argv)
              among many, knowing the record number may help.
              FIXME: currently print the record number only with
              --files0-from=FILE.  Maybe do it for argv, too?  */
-          if (files_from == nullptr)
+          if (files_from == NULL)
             error (0, 0, "%s", _("invalid zero-length file name"));
           else
             {
@@ -1117,7 +1208,7 @@ main (int argc, char **argv)
     error (EXIT_FAILURE, 0, _("error reading %s"), quoteaf (files_from));
 
   if (print_grand_total)
-    print_size (&tot_dui, _("total"));
+    print_size (&tot_dui, _("total"), false);
 
   return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

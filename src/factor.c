@@ -1,5 +1,5 @@
 /* factor -- print prime factors of n.
-   Copyright (C) 1986-2025 Free Software Foundation, Inc.
+   Copyright (C) 1986-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -175,6 +175,11 @@ typedef uint64_t UDItype;
 # if defined ASSERT || defined __GMP_DECLSPEC || defined __GMP_GNUC_PREREQ
 # endif
 
+/* longlong.h uses casts even when useless.  */
+# if 14 <= __GNUC__
+#  pragma GCC diagnostic ignored "-Wuseless-cast"
+# endif
+
 # if _ARCH_PPC
 #  define HAVE_HOST_CPU_FAMILY_powerpc 1
 # endif
@@ -199,11 +204,11 @@ enum
 
 static struct option const long_options[] =
 {
-  {"exponents", no_argument, nullptr, 'h'},
-  {"-debug", no_argument, nullptr, DEV_DEBUG_OPTION},
+  {"exponents", no_argument, NULL, 'h'},
+  {"-debug", no_argument, NULL, DEV_DEBUG_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* If true, use p^e output format.  */
@@ -287,11 +292,12 @@ struct mp_factor
 /* Prime factors of an mpz_t.  */
 struct mp_factors
 {
-  /* A vector of distinct prime factors, a count of the factors,
-     and the number of allocated slots in the vector.  */
-  struct mp_factor *f;
   idx_t nfactors;
   idx_t nalloc;
+
+  /* A vector of distinct prime factors, a count of the factors,
+     and the number of allocated slots in the vector.  */
+  struct mp_factor *f COUNTED_BY (nfactors);
 };
 
 static void factor (struct factors *, mp_limb_t, mp_limb_t);
@@ -645,11 +651,11 @@ mpn_tdiv_qr (mp_limb_t *qp, mp_limb_t *rp, MAYBE_UNUSED mp_size_t qxn,
              mp_limb_t const *dp, mp_size_t dn)
 {
   mpz_t q, r, n, d;
-  mpz_inits (q, r, nullptr);
+  mpz_inits (q, r, NULL);
   mpz_tdiv_qr (q, r, mpz_roinit_n (n, np, nn), mpz_roinit_n (d, dp, dn));
   copy_mpn_from_mpz (qp, nn - dn + 1, q);
   copy_mpn_from_mpz (rp, dn, r);
-  mpz_clears (q, r, nullptr);
+  mpz_clears (q, r, NULL);
 }
 #endif
 
@@ -659,7 +665,7 @@ static struct mp_factors mp_factor (mpz_t);
 static struct mp_factors
 mp_no_factors (void)
 {
-  return (struct mp_factors) {0,};
+  return (struct mp_factors) {0};
 }
 
 /* Free storage allocated for FACTORS, making it uninitialized.  */
@@ -720,7 +726,7 @@ static int_least16_t const primes_ptab[] = {
 };
 #undef P
 
-enum { PRIMES_PTAB_ENTRIES = ARRAY_CARDINALITY (primes_ptab) - 8 + 1 };
+enum { PRIMES_PTAB_ENTRIES = countof (primes_ptab) - 8 + 1 };
 
 struct primes_dtab
 {
@@ -880,6 +886,8 @@ factor_using_division (struct factors *factors, mp_limb_t t1, mp_limb_t t0,
       t0 = divblock (factors, t0, pd, i, 6);
       t0 = divblock (factors, t0, pd, i, 7);
 
+      if (PRIMES_PTAB_ENTRIES <= i + 8)
+        break;
       int_least32_t p = primes_ptab[i + 8];
       if (p * p > t0)
         break;
@@ -1114,7 +1122,7 @@ mulredc2 (mp_limb_t *r1p,
   q = mi * t0;
   umul_ppmm (p1, p0, q, m0);
   umul_ppmm (s1, s0, q, m1);
-  r0 += (t0 != 0); /* Carry */
+  p1 += (t0 != 0); /* Carry */
   add_ssaaaa (r1, r0, r1, r0, 0, p1);
   add_ssaaaa (r1, r0, r1, r0, 0, t1);
   add_ssaaaa (r1, r0, r1, r0, s1, s0);
@@ -1141,7 +1149,7 @@ mulredc2 (mp_limb_t *r1p,
   add_ssaaaa (r1, r0, s1, s0, 0, r1);
   umul_ppmm (p1, p0, q, m0);
   umul_ppmm (s1, s0, q, m1);
-  r0 += (t0 != 0); /* Carry */
+  p1 += (t0 != 0); /* Carry */
   add_ssaaaa (r1, r0, r1, r0, 0, p1);
   add_ssaaaa (r1, r0, r1, r0, 0, t1);
   add_ssaaaa (r1, r0, r1, r0, s1, s0);
@@ -1599,7 +1607,7 @@ factor_up (struct factors *factors, mp_limb_t t1, mp_limb_t t0,
 static void
 factor (struct factors *factors, mp_limb_t t1, mp_limb_t t0)
 {
-  return factor_up (factors, t1, t0, 0);
+  factor_up (factors, t1, t0, 0);
 }
 
 /* Return the prime factors of T.  */
@@ -1627,7 +1635,9 @@ mp_factor (mpz_t t)
 }
 
 /* Convert to *U the value represented by S, and return LONGINT_OK.
-   However, on error simply return a value other than LONGINT_OK.  */
+   Return LONGINT_OVERFLOW if S is composed of all digits but is too
+   large to fit in *U, otherwise LONGINT_INVALID if S is not a valid
+   positive integer.  */
 static strtol_error
 strtouuint (uuint *u, char const *s)
 {
@@ -1639,7 +1649,7 @@ strtouuint (uuint *u, char const *s)
   for (; LIKELY (0 <= *s - '0' && *s - '0' <= 9); s++)
     {
       if (UNLIKELY (ckd_mul (&hi, hi, 10)))
-        return LONGINT_OVERFLOW;
+        goto overflow;
 
       int lo_carry = (lo >> (W_TYPE_SIZE - 3)) + (lo >> (W_TYPE_SIZE - 1));
       lo_carry += 10 * lo < 2 * lo;
@@ -1647,7 +1657,7 @@ strtouuint (uuint *u, char const *s)
       lo = 10 * lo;
       lo_carry += ckd_add (&lo, lo, *s - '0');
       if (UNLIKELY (ckd_add (&hi, hi, lo_carry)))
-        return LONGINT_OVERFLOW;
+        goto overflow;
     }
 
   if (UNLIKELY (*s))
@@ -1655,6 +1665,11 @@ strtouuint (uuint *u, char const *s)
 
   *u = make_uuint (hi, lo);
   return LONGINT_OK;
+
+ overflow:
+  /* Since s[0] caused the overflow, we know it is a valid integer.  */
+  s++;
+  return s[strspn (s, "0123456789")] ? LONGINT_INVALID : LONGINT_OVERFLOW;
 }
 
 /* FACTOR_PIPE_BUF is chosen to give good performance,
@@ -1884,6 +1899,7 @@ print_factors (char const *input)
      way.  */
   uuint u;
   strtol_error err = strtouuint (&u, str);
+  mpz_t t;
 
   switch (err)
     {
@@ -1897,7 +1913,9 @@ print_factors (char const *input)
       FALLTHROUGH;
     case LONGINT_OVERFLOW:
       /* Try GMP.  */
-      break;
+      if (0 <= mpz_init_set_str (t, str, 10))
+        break;
+      FALLTHROUGH;
 
     case LONGINT_INVALID:
     case LONGINT_INVALID_SUFFIX_CHAR:
@@ -1908,8 +1926,6 @@ print_factors (char const *input)
     }
 
   devmsg ("[using arbitrary-precision arithmetic] ");
-  mpz_t t;
-  mpz_init_set_str (t, str, 10);
   if (MP_FACTOR_USING_POLLARD_RHO_N_MAX < mp_size (t))
     xalloc_die ();
 
@@ -1953,11 +1969,12 @@ Print the prime factors of each specified integer NUMBER.  If none\n\
 are specified on the command line, read them from standard input.\n\
 \n\
 "), stdout);
-      fputs ("\
-  -h, --exponents   print repeated factors in form p^e unless e is 1\n\
-", stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -h, --exponents\n\
+         print repeated factors in form p^e unless e is 1\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -2002,7 +2019,7 @@ main (int argc, char **argv)
   atexit (close_stdout);
 
   int c;
-  while ((c = getopt_long (argc, argv, "h", long_options, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "h", long_options, NULL)) != -1)
     {
       switch (c)
         {

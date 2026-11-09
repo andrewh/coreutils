@@ -1,5 +1,5 @@
 /* GNU's uptime.
-   Copyright (C) 1992-2025 Free Software Foundation, Inc.
+   Copyright (C) 1992-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@
   proper_name ("Kaveh Ghazi")
 
 static int
-print_uptime (idx_t n, struct gl_utmp const *utmp_buf)
+print_uptime (idx_t n, STRUCT_UTMP const *utmp_buf)
 {
   int status = EXIT_SUCCESS;
   time_t boot_time = 0;
@@ -47,7 +47,7 @@ print_uptime (idx_t n, struct gl_utmp const *utmp_buf)
   idx_t entries = 0;
   for (idx_t i = 0; i < n; i++)
     {
-      struct gl_utmp const *this = &utmp_buf[i];
+      STRUCT_UTMP const *this = &utmp_buf[i];
       entries += IS_USER_PROCESS (this);
       if (UT_TYPE_BOOT_TIME (this))
         boot_time = this->ut_ts.tv_sec;
@@ -60,13 +60,13 @@ print_uptime (idx_t n, struct gl_utmp const *utmp_buf)
       status = EXIT_FAILURE;
     }
 
-  time_t time_now = time (nullptr);
-  struct tm *tmn = time_now == (time_t) -1 ? nullptr : localtime (&time_now);
+  time_t time_now = time (NULL);
+  struct tm *tmn = time_now == (time_t) -1 ? NULL : localtime (&time_now);
   /* procps' version of uptime also prints the seconds field, but
      previous versions of coreutils don't. */
   if (tmn)
     /* TRANSLATORS: This prints the current clock time. */
-    fprintftime (stdout, _(" %H:%M:%S  "), tmn, 0, 0);
+    fprintftime (stdout, _(" %H:%M:%S  "), tmn, (timezone_t) 0, 0);
   else
     {
       printf (_(" ??:????  "));
@@ -91,7 +91,7 @@ print_uptime (idx_t n, struct gl_utmp const *utmp_buf)
                           select_plural (updays)),
                 updays, uphours, upmins);
       else
-        printf (_("up  %2d:%02d,  "), uphours, upmins);
+        printf (_("up %2d:%02d,  "), uphours, upmins);
     }
 
   printf (ngettext ("%td user", "%td users", select_plural (entries)),
@@ -125,14 +125,14 @@ static _Noreturn void
 uptime (char const *filename, int options)
 {
   idx_t n_users;
-  struct gl_utmp *utmp_buf;
+  STRUCT_UTMP *utmp_buf;
   int read_utmp_status = (read_utmp (filename, &n_users, &utmp_buf, options) < 0
                           ? EXIT_FAILURE : EXIT_SUCCESS);
   if (read_utmp_status != EXIT_SUCCESS)
     {
       error (0, errno, "%s", quotef (filename));
       n_users = 0;
-      utmp_buf = nullptr;
+      utmp_buf = NULL;
     }
 
   int print_uptime_status = print_uptime (n_users, utmp_buf);
@@ -166,8 +166,8 @@ an uninterruptible sleep state also contribute to the load average.\n"));
 If FILE is not specified, use %s.  %s as FILE is common.\n\
 \n"),
               UTMP_FILE, WTMP_FILE);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -186,7 +186,7 @@ main (int argc, char **argv)
 
   parse_gnu_standard_options_only (argc, argv, PROGRAM_NAME, PACKAGE_NAME,
                                    Version, true, usage, AUTHORS,
-                                   (char const *) nullptr);
+                                   (char const *) NULL);
 
   switch (argc - optind)
     {

@@ -1,5 +1,5 @@
 /* GNU fmt -- simple text formatter.
-   Copyright (C) 1994-2025 Free Software Foundation, Inc.
+   Copyright (C) 1994-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 /* Written by Ross Paterson <rap@doc.ic.ac.uk>.  */
 
 #include <config.h>
-#include <ctype.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <getopt.h>
@@ -116,9 +115,9 @@ typedef long int COST;
 
 /* Extra ctype(3)-style macros.  */
 
-#define isopen(c)	(strchr ("(['`\"", c) != nullptr)
-#define isclose(c)	(strchr (")]'\"", c) != nullptr)
-#define isperiod(c)	(strchr (".?!", c) != nullptr)
+#define isopen(c)	(strchr ("(['`\"", c) != NULL)
+#define isclose(c)	(strchr (")]'\"", c) != NULL)
+#define isperiod(c)	(strchr (".?!", c) != NULL)
 
 /* Size of a tab stop, for expansion on input and re-introduction on
    output.  */
@@ -183,11 +182,11 @@ static bool split;
 static bool uniform;
 
 /* Prefix minus leading and trailing spaces (default "").  */
-static char const *prefix;
+static char const *prefix = "";
 
 /* User-supplied maximum line width (default WIDTH).  The only output
    lines longer than this will each comprise a single word.  */
-static int max_width;
+static int max_width = WIDTH;
 
 /* Values derived from the option values.  */
 
@@ -275,23 +274,39 @@ The option -WIDTH is an abbreviated form of --width=DIGITS.\n\
       emit_stdin_note ();
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -c, --crown-margin        preserve indentation of first two lines\n\
-  -p, --prefix=STRING       reformat only lines beginning with STRING,\n\
-                              reattaching the prefix to reformatted lines\n\
-  -s, --split-only          split long lines, but do not refill\n\
-"),
-             stdout);
+      oputs (_("\
+  -c, --crown-margin\n\
+         preserve indentation of first two lines\n\
+"));
+      oputs (_("\
+  -p, --prefix=STRING\n\
+         reformat only lines beginning with STRING,\n\
+         reattaching the prefix to reformatted lines\n\
+"));
+      oputs (_("\
+  -s, --split-only\n\
+         split long lines, but do not refill\n\
+"));
+      oputs (_("\
+  -t, --tagged-paragraph\n\
+         indentation of first line different from second\n\
+"));
+      oputs (_("\
+  -u, --uniform-spacing\n\
+         one space between words, two after sentences\n\
+"));
+      oputs (_("\
+  -w, --width=WIDTH\n\
+         maximum line width (default of 75 columns)\n\
+"));
       /* Tell xgettext that the "% o" below is not a printf-style
          format string:  xgettext:no-c-format */
-      fputs (_("\
-  -t, --tagged-paragraph    indentation of first line different from second\n\
-  -u, --uniform-spacing     one space between words, two after sentences\n\
-  -w, --width=WIDTH         maximum line width (default of 75 columns)\n\
-  -g, --goal=WIDTH          goal width (default of 93% of width)\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -g, --goal=WIDTH\n\
+         goal width (default of 93% of width)\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -301,16 +316,16 @@ The option -WIDTH is an abbreviated form of --width=DIGITS.\n\
 
 static struct option const long_options[] =
 {
-  {"crown-margin", no_argument, nullptr, 'c'},
-  {"prefix", required_argument, nullptr, 'p'},
-  {"split-only", no_argument, nullptr, 's'},
-  {"tagged-paragraph", no_argument, nullptr, 't'},
-  {"uniform-spacing", no_argument, nullptr, 'u'},
-  {"width", required_argument, nullptr, 'w'},
-  {"goal", required_argument, nullptr, 'g'},
+  {"crown-margin", no_argument, NULL, 'c'},
+  {"prefix", required_argument, NULL, 'p'},
+  {"split-only", no_argument, NULL, 's'},
+  {"tagged-paragraph", no_argument, NULL, 't'},
+  {"uniform-spacing", no_argument, NULL, 'u'},
+  {"width", required_argument, NULL, 'w'},
+  {"goal", required_argument, NULL, 'g'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0},
+  {NULL, 0, NULL, 0},
 };
 
 int
@@ -318,8 +333,8 @@ main (int argc, char **argv)
 {
   int optchar;
   bool ok = true;
-  char const *max_width_option = nullptr;
-  char const *goal_width_option = nullptr;
+  char const *max_width_option = NULL;
+  char const *goal_width_option = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -328,11 +343,6 @@ main (int argc, char **argv)
   textdomain (PACKAGE);
 
   atexit (close_stdout);
-
-  crown = tagged = split = uniform = false;
-  max_width = WIDTH;
-  prefix = "";
-  prefix_length = prefix_lead_space = prefix_full_length = 0;
 
   if (argc > 1 && argv[1][0] == '-' && c_isdigit (argv[1][1]))
     {
@@ -346,7 +356,7 @@ main (int argc, char **argv)
     }
 
   while ((optchar = getopt_long (argc, argv, "0123456789cstuw:p:g:",
-                                 long_options, nullptr))
+                                 long_options, NULL))
          != -1)
     switch (optchar)
       {
@@ -403,8 +413,8 @@ main (int argc, char **argv)
     {
       /* Limit goal_width to max_width.  */
       goal_width = xdectoumax (goal_width_option, 0, max_width, "",
-                               _("invalid width"), 0);
-      if (max_width_option == nullptr)
+                               _("invalid goal"), 0);
+      if (max_width_option == NULL)
         max_width = goal_width + 10;
     }
   else
@@ -424,7 +434,7 @@ main (int argc, char **argv)
       for (; optind < argc; optind++)
         {
           char *file = argv[optind];
-          if (STREQ (file, "-"))
+          if (streq (file, "-"))
             {
               ok &= fmt (stdin, file);
               have_read_stdin = true;
@@ -433,7 +443,7 @@ main (int argc, char **argv)
             {
               FILE *in_stream;
               in_stream = fopen (file, "r");
-              if (in_stream != nullptr)
+              if (in_stream != NULL)
                 ok &= fmt (in_stream, file);
               else
                 {
@@ -493,12 +503,18 @@ fmt (FILE *f, char const *file)
     }
 
   int err = ferror (f) ? 0 : -1;
+  /* err < 0 means success.  */
   if (f == stdin)
     clearerr (f);
   else if (fclose (f) != 0 && err < 0)
     err = errno;
   if (0 <= err)
-    error (0, err, err ? "%s" : _("read error"), quotef (file));
+    {
+      if (f == stdin)
+        error (0, errno, _("read error"));
+      else
+        error (0, errno, _("error reading %s"), quoteaf (file));
+    }
   return err < 0;
 }
 
@@ -630,13 +646,11 @@ get_paragraph (FILE *f)
 static int
 copy_rest (FILE *f, int c)
 {
-  char const *s;
-
   out_column = 0;
   if (in_column > next_prefix_indent || (c != '\n' && c != EOF))
     {
       put_space (next_prefix_indent);
-      for (s = prefix; out_column != in_column && *s; out_column++)
+      for (char const *s = prefix; out_column != in_column && *s; out_column++)
         putchar (*s++);
       if (c != EOF && c != '\n')
         put_space (in_column - out_column);
@@ -737,9 +751,8 @@ get_prefix (FILE *f)
       prefix_lead_space : in_column;
   else
     {
-      char const *p;
       next_prefix_indent = in_column;
-      for (p = prefix; *p != '\0'; p++)
+      for (char const *p = prefix; *p != '\0'; p++)
         {
           unsigned char pc = *p;
           if (c != pc)
@@ -804,7 +817,10 @@ flush_paragraph (void)
 
   if (word_limit == word)
     {
-      fwrite (parabuf, sizeof *parabuf, wptr - parabuf, stdout);
+      size_t to_write = wptr - parabuf;
+      if (fwrite (parabuf, 1, to_write, stdout) != to_write)
+        write_error ();
+
       wptr = parabuf;
       return;
     }
@@ -859,7 +875,7 @@ flush_paragraph (void)
 static void
 fmt_paragraph (void)
 {
-  WORD *start, *w;
+  WORD *w;
   int len;
   COST wcost, best;
   int saved_length;
@@ -868,7 +884,7 @@ fmt_paragraph (void)
   saved_length = word_limit->length;
   word_limit->length = max_width;	/* sentinel */
 
-  for (start = word_limit - 1; start >= word; start--)
+  for (WORD *start = word_limit - 1; start >= word; start--)
     {
       best = MAXCOST;
       len = start == word ? first_indent : other_indent;
@@ -902,14 +918,14 @@ fmt_paragraph (void)
 
           len += (w - 1)->space + w->length;	/* w > start >= word */
         }
-      while (len < max_width);
+      while (len <= max_width);
       start->best_cost = best + base_cost (start);
     }
 
   word_limit->length = saved_length;
 }
 
-/* Work around <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109628>.  */
+/* Work around <https://gcc.gnu.org/PR109628>.  */
 #if __GNUC__ == 13
 # pragma GCC diagnostic ignored "-Wanalyzer-use-of-uninitialized-value"
 #endif
@@ -974,10 +990,8 @@ line_cost (WORD *next, int len)
 static void
 put_paragraph (WORD *finish)
 {
-  WORD *w;
-
   put_line (word, first_indent);
-  for (w = word->next_break; w != finish; w = w->next_break)
+  for (WORD *w = word->next_break; w != finish; w = w->next_break)
     put_line (w, other_indent);
 }
 
@@ -1004,6 +1018,9 @@ put_line (WORD *w, int indent)
   put_word (w);
   last_line_length = out_column;
   putchar ('\n');
+
+  if (ferror (stdout))
+    write_error ();
 }
 
 /* Output to stdout the word W.  */
@@ -1011,11 +1028,8 @@ put_line (WORD *w, int indent)
 static void
 put_word (WORD *w)
 {
-  char const *s;
-  int n;
-
-  s = w->text;
-  for (n = w->length; n != 0; n--)
+  char const *s = w->text;
+  for (int n = w->length; n != 0; n--)
     putchar (*s++);
   out_column += w->length;
 }

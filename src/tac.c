@@ -1,5 +1,5 @@
 /* tac - concatenate and print files in reverse
-   Copyright (C) 1988-2025 Free Software Foundation, Inc.
+   Copyright (C) 1988-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ tac -r -s '.\|
 
 #include "filenamecat.h"
 #include "full-read.h"
-#include "safe-read.h"
+#include "full-write.h"
 #include "temp-stream.h"
 #include "xbinary-io.h"
 
@@ -64,19 +64,19 @@ tac -r -s '.\|
 #define WRITESIZE 8192
 
 /* The string that separates the records of the file. */
-static char const *separator;
+static char const *separator = "\n";
 
 /* True if we have ever read standard input.  */
 static bool have_read_stdin = false;
 
 /* If true, print 'separator' along with the record preceding it
    in the file; otherwise with the record following it. */
-static bool separator_ends_record;
+static bool separator_ends_record = true;
 
 /* 0 if 'separator' is to be matched as a regular expression;
    otherwise, the length of 'separator', used as a sentinel to
    stop the search. */
-static size_t sentinel_length;
+static size_t sentinel_length = 1;
 
 /* The length of a match with 'separator'.  If 'sentinel_length' is 0,
    'match_length' is computed every time a match succeeds;
@@ -101,12 +101,12 @@ static struct re_registers regs;
 
 static struct option const longopts[] =
 {
-  {"before", no_argument, nullptr, 'b'},
-  {"regex", no_argument, nullptr, 'r'},
-  {"separator", required_argument, nullptr, 's'},
+  {"before", no_argument, NULL, 'b'},
+  {"regex", no_argument, NULL, 'r'},
+  {"separator", required_argument, NULL, 's'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -127,13 +127,20 @@ Write each FILE to standard output, last line first.\n\
       emit_stdin_note ();
       emit_mandatory_arg_note ();
 
-      fputs (_("\
+      oputs (_("\
   -b, --before             attach the separator before instead of after\n\
+"));
+      oputs (_("\
   -r, --regex              interpret the separator as a regular expression\n\
+"));
+      oputs (_("\
   -s, --separator=STRING   use STRING as the separator instead of newline\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
+      fputs (_("\n\
+Non-seekable input is buffered to $TMPDIR, defaulting to /tmp.\n\
 "), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -150,9 +157,11 @@ output (char const *start, char const *past_end)
   size_t bytes_to_add = past_end - start;
   size_t bytes_available = WRITESIZE - bytes_in_buffer;
 
-  if (start == 0)
+  if (!start)
     {
-      fwrite (buffer, 1, bytes_in_buffer, stdout);
+      if (full_write (STDOUT_FILENO, buffer, bytes_in_buffer)
+          != bytes_in_buffer)
+        write_error ();
       bytes_in_buffer = 0;
       return;
     }
@@ -163,7 +172,8 @@ output (char const *start, char const *past_end)
       memcpy (buffer + bytes_in_buffer, start, bytes_available);
       bytes_to_add -= bytes_available;
       start += bytes_available;
-      fwrite (buffer, 1, WRITESIZE, stdout);
+      if (full_write (STDOUT_FILENO, buffer, WRITESIZE) != WRITESIZE)
+        write_error ();
       bytes_in_buffer = 0;
       bytes_available = WRITESIZE;
     }
@@ -212,7 +222,7 @@ tac_seekable (int input_fd, char const *file, off_t file_pos)
 
   /* Scan backward, looking for end of file.  This caters to proc-like
      file systems where the file size is just an estimate.  */
-  while ((saved_record_size = safe_read (input_fd, G_buffer, read_size)) == 0
+  while ((saved_record_size = read (input_fd, G_buffer, read_size)) == 0
          && file_pos != 0)
     {
       off_t rsize = read_size;
@@ -224,7 +234,7 @@ tac_seekable (int input_fd, char const *file, off_t file_pos)
   /* Now scan forward, looking for end of file.  */
   while (saved_record_size == read_size)
     {
-      ptrdiff_t nread = safe_read (input_fd, G_buffer, read_size);
+      ssize_t nread = read (input_fd, G_buffer, read_size);
       if (nread == 0)
         break;
       saved_record_size = nread;
@@ -385,7 +395,7 @@ copy_to_temp (FILE **g_tmp, char **g_tempfile, int input_fd, char const *file)
 
   while (true)
     {
-      ptrdiff_t bytes_read = safe_read (input_fd, G_buffer, read_size);
+      ssize_t bytes_read = read (input_fd, G_buffer, read_size);
       if (bytes_read == 0)
         break;
       if (bytes_read < 0)
@@ -443,7 +453,7 @@ tac_file (char const *filename)
   bool ok;
   off_t file_size;
   int fd;
-  bool is_stdin = STREQ (filename, "-");
+  bool is_stdin = streq (filename, "-");
 
   if (is_stdin)
     {
@@ -487,7 +497,7 @@ main (int argc, char **argv)
 
   /* Initializer for file_list if no file-arguments
      were specified on the command line.  */
-  static char const *const default_file_list[] = {"-", nullptr};
+  static char const *const default_file_list[] = {"-", NULL};
   char const *const *file;
 
   initialize_main (&argc, &argv);
@@ -498,11 +508,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  separator = "\n";
-  sentinel_length = 1;
-  separator_ends_record = true;
-
-  while ((optc = getopt_long (argc, argv, "brs:", longopts, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "brs:", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -527,10 +533,10 @@ main (int argc, char **argv)
       if (*separator == 0)
         error (EXIT_FAILURE, 0, _("separator cannot be empty"));
 
-      compiled_separator.buffer = nullptr;
+      compiled_separator.buffer = NULL;
       compiled_separator.allocated = 0;
       compiled_separator.fastmap = compiled_separator_fastmap;
-      compiled_separator.translate = nullptr;
+      compiled_separator.translate = NULL;
       error_message = re_compile_pattern (separator, strlen (separator),
                                           &compiled_separator);
       if (error_message)
@@ -574,7 +580,7 @@ main (int argc, char **argv)
   }
 
   /* Flush the output buffer. */
-  output ((char *) nullptr, (char *) nullptr);
+  output ((char *) NULL, (char *) NULL);
 
   if (have_read_stdin && close (STDIN_FILENO) < 0)
     {

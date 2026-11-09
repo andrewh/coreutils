@@ -1,7 +1,7 @@
 #!/bin/sh
-# test -C, --lines-bytes
+# test -C, --line-bytes
 
-# Copyright (C) 2013-2025 Free Software Foundation, Inc.
+# Copyright (C) 2013-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ for b in $(seq 10); do
   compare no_eol_splits_exp no_eol_splits || fail=1
 done
 
-# Test hold buffer management with --lines-bytes.
+# Test hold buffer management with --line-bytes.
 # The following triggers (with ASAN) a heap overflow issue
 # between coreutils 9.2 and 9.4 inclusive.
 printf '%131070s\n' '' >expaa || framework_failure_

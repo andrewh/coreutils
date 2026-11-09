@@ -2,7 +2,7 @@
 
 dnl Misc type-related macros for coreutils.
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -70,11 +70,14 @@ AC_DEFUN([coreutils_MACROS],
     setgroups
     sethostname
     siginterrupt
+    vmsplice
     sync
-    syncfs
     sysinfo
     tcgetpgrp
   ])
+
+  # Android API level 30.
+  gl_CHECK_FUNCS_ANDROID([syncfs], [[#include <unistd.h>]])
 
   # These checks are for Interix, to avoid its getgr* functions, in favor
   # of these replacements.  The replacement functions are much more efficient

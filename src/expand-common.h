@@ -1,6 +1,6 @@
 /* expand-common - common functionality for expand/unexpand
 
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,7 +38,10 @@ add_tab_stop (colno tabval);
 extern void
 parse_tab_stops (char const *stops) _GL_ATTRIBUTE_NONNULL ();
 
-/* TODO: Document */
+/* Return number of first tab stop after COLUMN.  TAB_INDEX specifies
+   many multiple tab-sizes.  Set *LAST_TAB depending on whether we are
+   returning COLUMN + 1 merely because we're past the last tab.
+   If the number would overflow, diagnose this and exit.  */
 extern colno
 get_next_tab_column (const colno column, idx_t *tab_index,
                      bool *last_tab)
@@ -59,14 +62,15 @@ set_file_list (char **file_list);
 /* Close the old stream pointer FP if it is non-null,
    and return a new one opened to read the next input file.
    Open a filename of '-' as the standard input.
-   Return nullptr if there are no more input files.  */
+   Return NULL if there are no more input files.  */
 extern FILE *
 next_file (FILE *fp);
 
-/* */
+/* Close standard input if we have read from it.  */
 extern void
 cleanup_file_list_stdin (void);
 
-
+/* Emit the --help output for --tabs=LIST option accepted by expand and
+   unexpand.  */
 extern void
-emit_tab_list_info (void);
+emit_tab_list_info (char const *program);

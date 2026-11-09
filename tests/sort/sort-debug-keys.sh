@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test annotation of sort keys
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -316,7 +316,7 @@ ___________________
 EOF
 
 unset LC_ALL
-if test "$LOCALE_FR_UTF8" != "none"; then
+if test -n "$LOCALE_FR_UTF8" && test "$LOCALE_FR_UTF8" != "none"; then
  f=$LOCALE_FR_UTF8
  LC_NUMERIC=$f LC_MESSAGES=C sort -g --debug /dev/null 2> debug.out
  if grep 'numbers use .*,.* as a decimal point' debug.out >/dev/null; then

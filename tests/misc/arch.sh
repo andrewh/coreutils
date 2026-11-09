@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that arch output is equal to uname -m
 
-# Copyright (C) 2007-2025 Free Software Foundation, Inc.
+# Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,9 @@ print_ver_ arch
 
 arch > out || fail=1
 uname -m > exp || fail=1
+compare exp out || fail=1
 
+arch -- > out || fail=1
 compare exp out || fail=1
 
 Exit $fail

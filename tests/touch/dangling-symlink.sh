@@ -2,7 +2,7 @@
 # Make sure touch can create a file through a dangling symlink.
 # This was broken in the 4.0[e-i] test releases.
 
-# Copyright (C) 1999-2025 Free Software Foundation, Inc.
+# Copyright (C) 1999-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,8 +30,8 @@ test -f touch-target || fail=1
 rm -f touch-target t-symlink
 
 if test $fail = 1; then
-  case $host_triplet in
-    *linux-gnu*)
+  case $host_os in
+    linux-gnu*)
       case "$(uname -r)" in
         2.3.9[0-9]*)
           skip_ \

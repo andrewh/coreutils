@@ -1,7 +1,7 @@
 #!/bin/sh
 # exercise the -w option
 
-# Copyright (C) 2015-2025 Free Software Foundation, Inc.
+# Copyright (C) 2015-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -44,5 +44,35 @@ TERM=xterm ls -w0 -x --color=always || fail=1
 # coreutils <= 8.24 could display 1 column too few
 ls -w4 -x -T0 a b > out || fail=1
 compare exp out || fail=1
+
+# coreutils <= 9.11 could display 1 column too few
+touch aa c || framework_failure_
+cat <<\EOF > exp || framework_failure_
+aa  b
+c
+EOF
+ls -w5 -x -T0 aa b c > out || fail=1
+compare exp out || fail=1
+
+# coreutils <= 9.11 could display 1 column too few
+cat <<\EOF > exp || framework_failure_
+aa  c
+b
+EOF
+ls -w5 -C -T0 aa b c > out || fail=1
+compare exp out || fail=1
+
+# These entries span 79 columns with a separator of two spaces
+# coreutils <= 9.11, and BSDs wrap with -w79 as new line included
+# Solaris 11 wraps with width <= 84? (COLUMNS=84 ls -m)
+# uutils 0.7.0 wraps with width <= 96?
+files="\
+Desktop  Documents  Downloads  Music  Pictures  Public  Templates  Videos  code"
+mkdir subdir2 && (cd subdir2 && touch $files) || framework_failure_
+printf '%s\n' "$files" > exp || framework_failure_
+ls -x -T0 -w79 subdir2 > out || fail=1  # Should not wrap at 79
+compare exp out || fail=1
+ls -x -T0 -w78 subdir2 > out || fail=1  # Should wrap at 78
+test "$(wc -l < out)" -gt 1 || fail=1
 
 Exit $fail

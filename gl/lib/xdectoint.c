@@ -1,6 +1,6 @@
 /* Convert decimal strings with bounds checking and exit on error.
 
-   Copyright (C) 2014-2025 Free Software Foundation, Inc.
+   Copyright (C) 2014-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ __xnumtoint (char const *n_str, int base, __xdectoint_t min, __xdectoint_t max,
              int flags)
 {
   __xdectoint_t tnum, r;
-  strtol_error s_err = __xstrtol (n_str, nullptr, base, &tnum, suffixes);
+  strtol_error s_err = __xstrtol (n_str, NULL, base, &tnum, suffixes);
 
   /* Errno value to report if there is an overflow.  */
   int overflow_errno;

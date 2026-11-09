@@ -1,7 +1,7 @@
 #!/bin/sh
 # test multiple argument handling.
 
-# Copyright (C) 2012-2025 Free Software Foundation, Inc.
+# Copyright (C) 2012-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,15 +17,38 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
-print_ver_ readlink
+print_ver_ readlink pwd
 
 touch regfile || framework_failure_
 ln -s regfile link1 || framework_failure_
 
-readlink link1 link1 || fail=1
-returns_ 1 readlink link1 link2 || fail=1
-returns_ 1 readlink link1 link2 link1 || fail=1
-readlink -m link1 link2 || fail=1
+cat <<\EOF >exp || framework_failure_
+regfile
+regfile
+EOF
+readlink link1 link1 >out 2>err || fail=1
+compare exp out || fail=1
+compare /dev/null err || fail=1
+
+returns_ 1 readlink link1 link2 link1 >out 2>err || fail=1
+compare exp out || fail=1
+compare /dev/null err || fail=1
+
+cat <<\EOF >exp || framework_failure_
+regfile
+EOF
+returns_ 1 readlink link1 link2 >out 2>err || fail=1
+compare exp out || fail=1
+compare /dev/null err || fail=1
+
+pwd=$(env pwd -P)
+cat <<EOF >exp || framework_failure_
+$pwd/regfile
+$pwd/link2
+EOF
+readlink -m link1 link2 >out 2>err || fail=1
+compare exp out || fail=1
+compare /dev/null err || fail=1
 
 printf '/1\0/1\0' > exp || framework_failure_
 readlink -m --zero /1 /1 > out || fail=1

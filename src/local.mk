@@ -1,7 +1,7 @@
 # Make coreutils programs.                             -*-Makefile-*-
 # This is included by the top-level Makefile.am.
 
-## Copyright (C) 1990-2025 Free Software Foundation, Inc.
+## Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ include $(srcdir)/src/cu-progs.mk
 EXTRA_PROGRAMS = \
    $(no_install__progs) \
    $(build_if_possible__progs) \
+   $(build_if_appropriate__progs) \
    $(default__progs)
 
 # The user can tweak these lists at configure time.
@@ -39,6 +40,7 @@ noinst_PROGRAMS =		\
   src/getlimits
 
 noinst_HEADERS =		\
+  src/cksum.h			\
   src/chown.h			\
   src/chown-core.h		\
   src/copy.h			\
@@ -48,6 +50,7 @@ noinst_HEADERS =		\
   src/find-mount-point.h	\
   src/fs.h			\
   src/fs-is-local.h		\
+  src/fts-missing.h		\
   src/group-list.h		\
   src/ioblksize.h		\
   src/iopoll.h			\
@@ -55,13 +58,18 @@ noinst_HEADERS =		\
   src/ls.h			\
   src/octhexdigits.h		\
   src/operand2sig.h		\
+  src/printenv.h		\
   src/prog-fprintf.h		\
   src/remove.h			\
   src/set-fields.h		\
   src/show-date.h		\
+  src/splice.h			\
   src/statx.h			\
   src/system.h			\
   src/temp-stream.h		\
+  src/term-sig.h		\
+  src/test.h			\
+  src/true.h			\
   src/uname.h			\
   src/wc.h
 
@@ -136,7 +144,7 @@ src_env_LDADD = $(LDADD)
 src_expand_LDADD = $(LDADD)
 src_expr_LDADD = $(LDADD)
 src_factor_LDADD = $(LDADD)
-src_false_LDADD = $(LDADD)
+# See src_false_LDADD below
 src_fmt_LDADD = $(LDADD)
 src_fold_LDADD = $(LDADD)
 src_getlimits_LDADD = $(LDADD)
@@ -153,7 +161,7 @@ src_ln_LDADD = $(LDADD)
 src_logname_LDADD = $(LDADD)
 src_ls_LDADD = $(LDADD)
 
-src_md5sum_LDADD = $(LDADD)
+# See src_md5sum_LDADD below
 src_mkdir_LDADD = $(LDADD)
 src_mkfifo_LDADD = $(LDADD)
 src_mknod_LDADD = $(LDADD)
@@ -178,11 +186,12 @@ src_rm_LDADD = $(LDADD)
 src_rmdir_LDADD = $(LDADD)
 src_runcon_LDADD = $(LDADD)
 src_seq_LDADD = $(LDADD)
-src_sha1sum_LDADD = $(LDADD)
-src_sha224sum_LDADD = $(LDADD)
-src_sha256sum_LDADD = $(LDADD)
-src_sha384sum_LDADD = $(LDADD)
-src_sha512sum_LDADD = $(LDADD)
+# See src_md5sum_LDADD below
+# See src_sha1sum_LDADD below
+# See src_sha224sum_LDADD below
+# See src_sha256sum_LDADD below
+# See src_sha384sum_LDADD below
+# See src_sha512sum_LDADD below
 src_shred_LDADD = $(LDADD)
 src_shuf_LDADD = $(LDADD)
 src_sleep_LDADD = $(LDADD)
@@ -218,9 +227,16 @@ src_yes_LDADD = $(LDADD)
 
 # Synonyms.  Recall that Automake transliterates '[' and '/' to '_'.
 src___LDADD = $(src_test_LDADD)
+src_false_LDADD = $(src_true_LDADD)
 src_dir_LDADD = $(src_ls_LDADD)
 src_vdir_LDADD = $(src_ls_LDADD)
 src_chgrp_LDADD = $(src_chown_LDADD)
+src_md5sum_LDADD = $(src_cksum_LDADD)
+src_sha1sum_LDADD = $(src_cksum_LDADD)
+src_sha224sum_LDADD = $(src_cksum_LDADD)
+src_sha256sum_LDADD = $(src_cksum_LDADD)
+src_sha384sum_LDADD = $(src_cksum_LDADD)
+src_sha512sum_LDADD = $(src_cksum_LDADD)
 
 src_cp_LDADD += $(copy_ldadd)
 src_ginstall_LDADD += $(copy_ldadd)
@@ -237,6 +253,7 @@ src_test_LDADD += $(EUIDACCESS_LIBGEN)
 
 # for selinux use
 copy_ldadd += $(LIB_SELINUX)
+copy_ldadd += $(LIB_SMACK)
 src_chcon_LDADD += $(LIB_SELINUX)
 src_ginstall_LDADD += $(LIB_SELINUX)
 src_id_LDADD += $(LIB_SELINUX)
@@ -271,6 +288,7 @@ src_touch_LDADD += $(CLOCK_TIME_LIB)
 
 # for gethrxtime
 src_dd_LDADD += $(GETHRXTIME_LIB)
+src_shred_LDADD += $(GETHRXTIME_LIB)
 
 # for cap_get_file
 src_ls_LDADD += $(LIB_CAP)
@@ -286,6 +304,7 @@ src_sort_LDADD += $(NANOSLEEP_LIB)
 src_tail_LDADD += $(NANOSLEEP_LIB)
 
 # for various GMP functions
+src_basenc_LDADD += $(LIBGMP)
 src_expr_LDADD += $(LIBGMP)
 src_factor_LDADD += $(LIBGMP)
 
@@ -304,7 +323,7 @@ src_printf_LDADD += $(LIBICONV)
 
 # for libcrypto hash routines
 src_md5sum_LDADD += $(LIB_CRYPTO)
-src_sort_LDADD += $(LIB_DL) $(LIB_CRYPTO)
+src_sort_LDADD += $(LIBDL) $(LIB_CRYPTO)
 src_sha1sum_LDADD += $(LIB_CRYPTO)
 src_sha224sum_LDADD += $(LIB_CRYPTO)
 src_sha256sum_LDADD += $(LIB_CRYPTO)
@@ -325,6 +344,7 @@ src_pinky_LDADD += $(READUTMP_LIB)
 src_uptime_LDADD += $(READUTMP_LIB)
 src_users_LDADD += $(READUTMP_LIB)
 src_who_LDADD += $(READUTMP_LIB)
+src_logname_LDADD += $(READUTMP_LIB)
 
 # for strsignal
 src_kill_LDADD += $(LIBTHREAD)
@@ -346,6 +366,7 @@ selinux_sources = \
 
 copy_sources = \
   src/copy.c \
+  src/copy-file-data.c \
   src/cp-hash.c \
   src/force-link.c \
   src/force-link.h
@@ -366,7 +387,8 @@ src_ginstall_SOURCES = src/install.c src/prog-fprintf.c $(copy_sources) \
 		       $(selinux_sources)
 
 # This is for the '[' program.  Automake transliterates '[' and '/' to '_'.
-src___SOURCES = src/lbracket.c
+src___SOURCES = src/test.c src/test-lbracket.c
+src_test_SOURCES = src/test.c src/test-test.c
 
 nodist_src_coreutils_SOURCES = src/coreutils.h
 src_coreutils_SOURCES = src/coreutils.c
@@ -378,7 +400,6 @@ src_cp_SOURCES = src/cp.c $(copy_sources) $(selinux_sources)
 src_date_SOURCES = src/date.c src/show-date.c
 src_dir_SOURCES = src/ls.c src/ls-dir.c
 src_du_SOURCES = src/du.c src/show-date.c
-src_env_SOURCES = src/env.c src/operand2sig.c
 src_vdir_SOURCES = src/ls.c src/ls-vdir.c
 src_id_SOURCES = src/id.c src/group-list.c
 src_groups_SOURCES = src/groups.c src/group-list.c
@@ -401,8 +422,14 @@ src_rmdir_SOURCES = src/rmdir.c src/prog-fprintf.c
 src_mkfifo_SOURCES = src/mkfifo.c $(selinux_sources)
 src_mknod_SOURCES = src/mknod.c $(selinux_sources)
 
+src_env_SOURCES = src/env.c src/operand2sig.c src/printenv.h
+src_printenv_SOURCES = src/printenv.c src/printenv.h
+
 src_df_SOURCES = src/df.c src/find-mount-point.c
 src_stat_SOURCES = src/stat.c src/find-mount-point.c
+
+src_true_SOURCES = src/true.c src/true-true.c
+src_false_SOURCES = src/true.c src/true-false.c
 
 src_uname_SOURCES = src/uname.c src/uname-uname.c
 src_arch_SOURCES = src/uname.c src/uname-arch.c
@@ -416,55 +443,55 @@ src_tac_SOURCES = src/tac.c src/temp-stream.c
 src_tail_SOURCES = src/tail.c src/iopoll.c
 src_tee_SOURCES = src/tee.c src/iopoll.c
 
-src_sum_SOURCES = src/sum.c src/sum.h src/digest.c
+src_sum_SOURCES = src/sum.c src/sum.h src/cksum.c
 src_sum_CPPFLAGS = -DHASH_ALGO_SUM=1 $(AM_CPPFLAGS)
 
-src_md5sum_SOURCES = src/digest.c
+src_md5sum_SOURCES = src/cksum.c
 src_md5sum_CPPFLAGS = -DHASH_ALGO_MD5=1 $(AM_CPPFLAGS)
-src_sha1sum_SOURCES = src/digest.c
+src_sha1sum_SOURCES = src/cksum.c
 src_sha1sum_CPPFLAGS = -DHASH_ALGO_SHA1=1 $(AM_CPPFLAGS)
-src_sha224sum_SOURCES = src/digest.c
+src_sha224sum_SOURCES = src/cksum.c
 src_sha224sum_CPPFLAGS = -DHASH_ALGO_SHA224=1 $(AM_CPPFLAGS)
-src_sha256sum_SOURCES = src/digest.c
+src_sha256sum_SOURCES = src/cksum.c
 src_sha256sum_CPPFLAGS = -DHASH_ALGO_SHA256=1 $(AM_CPPFLAGS)
-src_sha384sum_SOURCES = src/digest.c
+src_sha384sum_SOURCES = src/cksum.c
 src_sha384sum_CPPFLAGS = -DHASH_ALGO_SHA384=1 $(AM_CPPFLAGS)
-src_sha512sum_SOURCES = src/digest.c
+src_sha512sum_SOURCES = src/cksum.c
 src_sha512sum_CPPFLAGS = -DHASH_ALGO_SHA512=1 $(AM_CPPFLAGS)
 src_b2sum_CPPFLAGS = -DHASH_ALGO_BLAKE2=1 -DHAVE_CONFIG_H $(AM_CPPFLAGS)
-src_b2sum_SOURCES = src/digest.c \
+src_b2sum_SOURCES = src/cksum.c \
 		    src/blake2/blake2.h src/blake2/blake2-impl.h \
 		    src/blake2/blake2b-ref.c \
 		    src/blake2/b2sum.c src/blake2/b2sum.h
 
 src_cksum_SOURCES = $(src_b2sum_SOURCES) src/sum.c src/sum.h \
-		    src/cksum.c src/cksum.h src/crctab.c
+		    src/cksum_crc.c src/cksum_crc.h src/crctab.c
 src_cksum_CPPFLAGS = -DHASH_ALGO_CKSUM=1 -DHAVE_CONFIG_H $(AM_CPPFLAGS)
 
 if USE_AVX512_CRC32
 noinst_LIBRARIES += src/libcksum_avx512.a
-src_libcksum_avx512_a_SOURCES = src/cksum_avx512.c src/cksum.h
+src_libcksum_avx512_a_SOURCES = src/cksum_avx512.c src/cksum_crc.h
 cksum_avx512_ldadd = src/libcksum_avx512.a
 src_cksum_LDADD += $(cksum_avx512_ldadd)
 src_libcksum_avx512_a_CFLAGS = -mavx512bw -mavx512f -mvpclmulqdq $(AM_CFLAGS)
 endif
 if USE_AVX2_CRC32
 noinst_LIBRARIES += src/libcksum_avx2.a
-src_libcksum_avx2_a_SOURCES = src/cksum_avx2.c src/cksum.h
+src_libcksum_avx2_a_SOURCES = src/cksum_avx2.c src/cksum_crc.h
 cksum_avx2_ldadd = src/libcksum_avx2.a
 src_cksum_LDADD += $(cksum_avx2_ldadd)
 src_libcksum_avx2_a_CFLAGS = -mpclmul -mavx -mavx2 -mvpclmulqdq $(AM_CFLAGS)
 endif
 if USE_PCLMUL_CRC32
 noinst_LIBRARIES += src/libcksum_pclmul.a
-src_libcksum_pclmul_a_SOURCES = src/cksum_pclmul.c src/cksum.h
+src_libcksum_pclmul_a_SOURCES = src/cksum_pclmul.c src/cksum_crc.h
 cksum_pclmul_ldadd = src/libcksum_pclmul.a
 src_cksum_LDADD += $(cksum_pclmul_ldadd)
 src_libcksum_pclmul_a_CFLAGS = -mavx -mpclmul $(AM_CFLAGS)
 endif
 if USE_VMULL_CRC32
 noinst_LIBRARIES += src/libcksum_vmull.a
-src_libcksum_vmull_a_SOURCES = src/cksum_vmull.c src/cksum.h
+src_libcksum_vmull_a_SOURCES = src/cksum_vmull.c src/cksum_crc.h
 cksum_vmull_ldadd = src/libcksum_vmull.a
 src_cksum_LDADD += $(cksum_vmull_ldadd)
 src_libcksum_vmull_a_CFLAGS = -march=armv8-a+crypto $(AM_CFLAGS)
@@ -481,12 +508,26 @@ src_expand_SOURCES = src/expand.c src/expand-common.c
 src_unexpand_SOURCES = src/unexpand.c src/expand-common.c
 
 src_wc_SOURCES = src/wc.c
+if USE_AVX512_WC_LINECOUNT
+noinst_LIBRARIES += src/libwc_avx512.a
+src_libwc_avx512_a_SOURCES = src/wc_avx512.c
+wc_avx512_ldadd = src/libwc_avx512.a
+src_wc_LDADD += $(wc_avx512_ldadd)
+src_libwc_avx512_a_CFLAGS = -mavx512bw -mavx512f  $(AM_CFLAGS)
+endif
 if USE_AVX2_WC_LINECOUNT
 noinst_LIBRARIES += src/libwc_avx2.a
 src_libwc_avx2_a_SOURCES = src/wc_avx2.c
 wc_avx2_ldadd = src/libwc_avx2.a
 src_wc_LDADD += $(wc_avx2_ldadd)
 src_libwc_avx2_a_CFLAGS = -mavx2 $(AM_CFLAGS)
+endif
+if USE_NEON_WC_LINECOUNT
+noinst_LIBRARIES += src/libwc_neon.a
+src_libwc_neon_a_SOURCES = src/wc_neon.c
+wc_neon_ldadd = src/libwc_neon.a
+src_wc_LDADD += $(wc_neon_ldadd)
+src_libwc_neon_a_CFLAGS = -march=armv8-a+simd $(AM_CFLAGS)
 endif
 
 # Ensure we don't link against libcoreutils.a as that lib is
@@ -509,10 +550,22 @@ EXTRA_src_coreutils_DEPENDENCIES = $(single_binary_deps)
 
 include $(top_srcdir)/src/single-binary.mk
 
-# Creates symlinks or shebangs to the installed programs when building
-# coreutils single binary.
+# Creates symlinks, or shebangs to the installed programs
+# _before_ building coreutils single binary.
+if !SINGLE_BINARY_HARD
 EXTRA_src_coreutils_DEPENDENCIES += src/coreutils_$(single_binary_install_type)
+endif
 endif SINGLE_BINARY
+
+# Creates hardlinks _after_ building the coreutils single binary.
+CLEANFILES += src/coreutils_hardlinks
+src/coreutils_hardlinks: src/coreutils$(EXEEXT)
+	$(AM_V_GEN)touch $@
+	$(AM_V_at)for i in x $(single_binary_progs); do \
+		test $$i = x && continue; \
+		rm -f src/$$i$(EXEEXT) || exit $$?; \
+		ln src/coreutils$(EXEEXT) src/$$i$(EXEEXT) || exit $$?; \
+	done
 
 CLEANFILES += src/coreutils_symlinks
 src/coreutils_symlinks: Makefile
@@ -578,13 +631,13 @@ $(top_srcdir)/src/primes.h: $(top_srcdir)/src/make-prime-list.c
 
 # We build crctab in a similar manner to primes.h.
 BUILT_SOURCES += $(top_srcdir)/src/crctab.c
-$(top_srcdir)/src/crctab.c: $(top_srcdir)/src/cksum.c
+$(top_srcdir)/src/crctab.c: $(top_srcdir)/src/cksum_crc.c
 	$(AM_V_GEN)if test -n '$(BUILD_CC)'; then \
 	  $(MKDIR_P) $(top_srcdir)/src/crctab-tmp \
 	  && (cd $(top_srcdir)/src/crctab-tmp \
 	      && $(BUILD_CC) $(BUILD_CPPFLAGS) $(BUILD_CFLAGS) \
 		$(BUILD_LDFLAGS) -DCRCTAB -o crctab$(EXEEXT) \
-		$(abs_top_srcdir)/src/cksum.c) \
+		$(abs_top_srcdir)/src/cksum_crc.c) \
 	  && rm -f $@ $@-t \
 	  && $(top_srcdir)/src/crctab-tmp/crctab$(EXEEXT) > $@-t \
 	  && chmod a-w $@-t \
@@ -717,7 +770,8 @@ src/speedlist.h: src/termios.c lib/config.h src/speedgen
 	$(AM_V_GEN)rm -f $@
 	$(AM_V_at)${MKDIR_P} src
 	$(AM_V_at)( for opt in $(getmacopts); do \
-			$(COMPILE) -E $$opt $< 2>&1 && break; \
+			$(COMPILE) -E $$opt $(srcdir)/src/termios.c 2>&1 \
+			  && break; \
 		    done ) | $(SHELL) $(srcdir)/src/speedgen $@t
 	$(AM_V_at)chmod a-w $@t
 	$(AM_V_at)mv $@t $@
@@ -726,7 +780,7 @@ src/speedlist.h: src/termios.c lib/config.h src/speedgen
 #   SINGLE_BINARY_PROGRAM(program_name_str, main_name)
 # once for each program list on $(single_binary_progs). Note that
 # for [ the macro invocation is:
-#   SINGLE_BINARY_PROGRAM("[", _)
+#   SINGLE_BINARY_PROGRAM("[", lbracket)
 DISTCLEANFILES += src/coreutils.h
 src/coreutils.h: Makefile
 	$(AM_V_GEN)rm -f $@
@@ -734,7 +788,11 @@ src/coreutils.h: Makefile
 	$(AM_V_at)for prog in x $(single_binary_progs); do	\
 	  test $$prog = x && continue;				\
 	  prog=`basename $$prog`;				\
-	  main=`echo $$prog | tr '[' '_'`;			\
+	  main=`if test $$prog = '['; then			\
+		  echo lbracket;				\
+		else						\
+		  echo $$prog;					\
+		fi`;						\
 	  echo "SINGLE_BINARY_PROGRAM(\"$$prog\", $$main)";	\
 	done | sort > $@t
 	$(AM_V_at)chmod a-w $@t

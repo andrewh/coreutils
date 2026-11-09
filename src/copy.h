@@ -1,5 +1,5 @@
 /* core functions for copying files and directories
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -234,12 +234,11 @@ struct cp_options
      while with 'cp --preserve=all' or 'cp -a', it is "false". */
   bool require_preserve_xattr;
 
-  /* This allows us to output warnings in cases 2 and 4 below,
+  /* This allows us to output warnings in case 2 below,
      while being quiet for case 1 (when reduce_diagnostics is true).
        1. cp -a                       try to copy xattrs with no errors
        2. cp --preserve=all           copy xattrs with all but ENOTSUP warnings
        3. cp --preserve=xattr,context copy xattrs with all errors
-       4. mv                          copy xattrs with all but ENOTSUP warnings
    */
   bool reduce_diagnostics;
 
@@ -294,19 +293,61 @@ struct cp_options
        rm -rf a b c; mkdir a b c; touch a/f b/f; mv a/f b/f c
      For now, it protects only regular files when copying (i.e., not renaming).
      When renaming, it protects all non-directories.
-     Use dest_info_init to initialize it, or set it to nullptr to disable
+     Use dest_info_init to initialize it, or set it to NULL to disable
      this feature.  */
   Hash_table *dest_info;
 
-  /* FIXME */
+  /* This is a set of dev/inode pairs.  This allows 'cp' to warn when the
+     same file is given multiple times on the command line. E.g., with
+     invocations like this:
+       rm -rf a b; touch a; mkdir b; cp a a ./a b
+     Use src_info_init to initialize it, or set it to NULL to disable
+     this feature.  */
   Hash_table *src_info;
 };
+
+enum copy_debug_val
+  {
+   /* COPY_DEBUG_MAX is a dummy that ensures that any errno
+      value can be assigned to an enum copy_debug_val.
+      The other enum constants are negative,
+      so that they do not collide with errno values.  */
+   COPY_DEBUG_MAX = INT_MAX,
+
+   COPY_DEBUG_UNKNOWN = -1,
+   COPY_DEBUG_NO = -2,
+   COPY_DEBUG_YES = -3,
+   COPY_DEBUG_EXTERNAL = -4,
+   COPY_DEBUG_EXTERNAL_INTERNAL = -5,
+   COPY_DEBUG_AVOIDED = -6,
+  };
+
+/* debug info about the last file copy.  */
+struct copy_debug
+{
+  enum copy_debug_val offload;
+  enum copy_debug_val reflink;
+  enum copy_debug_val sparse_detection;
+};
+
+/* The type of a large counter.  Although it is always nonnegative,
+   it is signed to help signed overflow checking catch any bugs.  */
+typedef intmax_t count_t;
+# define COUNT_MAX INTMAX_MAX
 
 bool copy (char const *src_name, char const *dst_name,
            int dst_dirfd, char const *dst_relname,
            int nonexistent_dst, const struct cp_options *options,
            bool *copy_into_self, bool *rename_succeeded)
   _GL_ATTRIBUTE_NONNULL ((1, 2, 4, 6, 7));
+
+intmax_t copy_file_data (int ifd, struct stat const *ist, off_t ipos,
+                         char const *iname,
+                         int ofd, struct stat const *ost, off_t opos,
+                         char const *oname,
+                         count_t ibytes, struct cp_options const *x,
+                         struct copy_debug *copy_debug)
+  _GL_ATTRIBUTE_NONNULL ((2, 4, 6, 8, 10, 11));
 
 extern bool set_process_security_ctx (char const *src_name,
                                       char const *dst_name,

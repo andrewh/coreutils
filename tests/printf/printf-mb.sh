@@ -1,7 +1,7 @@
 #!/bin/sh
 # tests for printing multi-byte values of characters
 
-# Copyright (C) 2022-2025 Free Software Foundation, Inc.
+# Copyright (C) 2022-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ print_ver_ printf
 prog='env printf'
 
 unset LC_ALL
-if test "$LOCALE_FR_UTF8" != "none"; then
+if test -n "$LOCALE_FR_UTF8" && test "$LOCALE_FR_UTF8" != "none"; then
   f=$LOCALE_FR_UTF8
   (
    #valid multi-byte

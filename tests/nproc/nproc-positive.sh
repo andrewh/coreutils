@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that nproc prints a number > 0
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ nproc
+getlimits_
 
 for mode in --all ''; do
     procs=$(nproc $mode)
@@ -40,5 +41,6 @@ done
 
 procs=$(OMP_NUM_THREADS=42 nproc --ignore=40)
 test "$procs" -eq 2 || fail=1
+test $(OMP_NUM_THREADS=42 nproc --ignore ${UINTMAX_OFLOW}) = 1 || fail=1
 
 Exit $fail

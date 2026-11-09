@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,6 +27,13 @@ my @Tests =
 ["1tok", '-w10', {IN=>"bar\n"},     {OUT=>"        bar\n"}],
 ["2tok", '-w10', {IN=>"foo bar\n"}, {OUT=>"     /   bar\n        foo/\n"}],
 
+# Ensure -w overrides -t
+["width-1", '-t -w10', {IN=>"bar\n"},     {OUT=>" " x  8 . "bar\n"}],
+# Ensure default width is 72
+["width-3", '',        {IN=>"bar\n"},     {OUT=>" " x 39 . "bar\n"}],
+# Ensure default width is 100 with -t
+["width-2", '-t',      {IN=>"bar\n"},     {OUT=>" " x 53 . "bar\n"}],
+
 # with coreutils-6.12 and earlier, this would infloop with -wN, N < 10
 ["narrow", '-w2', {IN=>"qux\n"},    {OUT=>"      qux\n"}],
 ["narrow-g", '-g1 -w2', {IN=>"ta\n"}, {OUT=>"  ta\n"}],
@@ -46,6 +53,13 @@ my @Tests =
 ["S-infloop", '-S \^', {IN=>"a\n"}, {EXIT=>1},
                        {ERR_SUBST=>'s/^.*reg.*ex.*length zero.*$/regexlzero/'},
                        {ERR=>"regexlzero\n"}],
+
+["S-bad-regex", '-S [', {IN=>"a\n"}, {EXIT=>1},
+                        {ERR=> ("$prog: Invalid regular " .
+                                "expression (for regexp '[')\n")}],
+["W-bad-regex", '-W [', {IN=>"a\n"}, {EXIT=>1},
+                        {ERR=> ("$prog: Invalid regular " .
+                                "expression (for regexp '[')\n")}],
 );
 
 @Tests = triple_test \@Tests;

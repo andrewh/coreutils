@@ -4,7 +4,7 @@
 # Check also locally if --preserve=context, -a and --preserve=all
 # does work
 
-# Copyright (C) 2007-2025 Free Software Foundation, Inc.
+# Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 print_ver_ cp
 require_root_
 require_selinux_
+getlimits_
 
 cwd=$(pwd)
 cleanup_() { cd /; umount "$cwd/mnt"; }
@@ -151,14 +152,14 @@ rm -f g
 echo > g
 cp --preserve=all ../f g 2>err || fail=1
 test -s g || fail=1
-grep "Operation not supported" err && fail=1
+grep "$ENOTSUP" err && fail=1
 
 # =====================================================
 # The same as above except destination does not exist
 rm -f g
 cp --preserve=all ../f g 2>err || fail=1
 test -s g || fail=1
-grep "Operation not supported" err && fail=1
+grep "$ENOTSUP" err && fail=1
 
 # An alternative to the following approach would be to run in a confined
 # domain (maybe creating/loading it) that lacks the required permissions

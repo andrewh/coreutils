@@ -1,5 +1,5 @@
 /* truncate -- truncate or extend the length of files.
-   Copyright (C) 2008-2025 Free Software Foundation, Inc.
+   Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
    to better fit the "GNU" environment.  */
 
 #include <config.h>             /* sets _FILE_OFFSET_BITS=64 etc. */
-#include <ctype.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <sys/types.h>
@@ -47,13 +46,13 @@ static char const *ref_file;
 
 static struct option const longopts[] =
 {
-  {"no-create", no_argument, nullptr, 'c'},
-  {"io-blocks", no_argument, nullptr, 'o'},
-  {"reference", required_argument, nullptr, 'r'},
-  {"size", required_argument, nullptr, 's'},
+  {"no-create", no_argument, NULL, 'c'},
+  {"io-blocks", no_argument, NULL, 'o'},
+  {"reference", required_argument, NULL, 'r'},
+  {"size", required_argument, NULL, 's'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 typedef enum
@@ -79,17 +78,20 @@ reads as zero bytes.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
+      oputs (_("\
   -c, --no-create        do not create any files\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -o, --io-blocks        treat SIZE as number of IO blocks instead of bytes\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -r, --reference=RFILE  base size on RFILE\n\
-  -s, --size=SIZE        set or adjust the file size by SIZE bytes\n"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+"));
+      oputs (_("\
+  -s, --size=SIZE        set or adjust the file size by SIZE bytes\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_size_note ();
       fputs (_("\n\
 SIZE may also be prefixed by one of the following modifying characters:\n\
@@ -188,7 +190,7 @@ do_ftruncate (int fd, char const *fname, off_t ssize, off_t rsize,
   if (ftruncate (fd, nsize) != 0)
     {
       error (0, errno, _("failed to truncate %s at %jd bytes"),
-             quoteaf (fname), (intmax_t) nsize);
+             quoteaf (fname), (intmax_t) {nsize});
       return false;
     }
 
@@ -212,7 +214,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((c = getopt_long (argc, argv, "cor:s:", longopts, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "cor:s:", longopts, NULL)) != -1)
     {
       switch (c)
         {
@@ -324,7 +326,8 @@ main (int argc, char **argv)
         file_size = sb.st_size;
       else
         {
-          int ref_fd = open (ref_file, O_RDONLY);
+          /* O_NONBLOCK so we do not hang forever on a FIFO with no writer.  */
+          int ref_fd = open (ref_file, O_RDONLY | O_NONBLOCK);
           if (0 <= ref_fd)
             {
               off_t file_end = lseek (ref_fd, 0, SEEK_END);

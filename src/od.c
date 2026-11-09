@@ -1,5 +1,5 @@
 /* od -- dump files in octal and other formats
-   Copyright (C) 1992-2025 Free Software Foundation, Inc.
+   Copyright (C) 1992-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
 
 #include <config.h>
 
-#include <ctype.h>
 #include <endian.h>
 #include <float.h>
 #include <stdio.h>
@@ -167,7 +166,7 @@ static const int width_bytes[] =
 
 /* Ensure that for each member of 'enum size_spec' there is an
    initializer in the width_bytes array.  */
-static_assert (ARRAY_CARDINALITY (width_bytes) == N_SIZE_SPECS);
+static_assert (countof (width_bytes) == N_SIZE_SPECS);
 
 /* Names for some non-printing characters.  */
 static char const charname[33][4] =
@@ -249,7 +248,7 @@ static char const *const *file_list;
 
 /* Initializer for file_list if no file-arguments
    were specified on the command line.  */
-static char const *const default_file_list[] = {"-", nullptr};
+static char const *const default_file_list[] = {"-", NULL};
 
 /* The input stream associated with the current file.  */
 static FILE *in_stream;
@@ -323,7 +322,7 @@ enum endian_type
 
 static char const *const endian_args[] =
 {
-  "little", "big", nullptr
+  "little", "big", NULL
 };
 
 static enum endian_type const endian_types[] =
@@ -333,19 +332,19 @@ static enum endian_type const endian_types[] =
 
 static struct option const long_options[] =
 {
-  {"skip-bytes", required_argument, nullptr, 'j'},
-  {"address-radix", required_argument, nullptr, 'A'},
-  {"read-bytes", required_argument, nullptr, 'N'},
-  {"format", required_argument, nullptr, 't'},
-  {"output-duplicates", no_argument, nullptr, 'v'},
-  {"strings", optional_argument, nullptr, 'S'},
-  {"traditional", no_argument, nullptr, TRADITIONAL_OPTION},
-  {"width", optional_argument, nullptr, 'w'},
-  {"endian", required_argument, nullptr, ENDIAN_OPTION },
+  {"skip-bytes", required_argument, NULL, 'j'},
+  {"address-radix", required_argument, NULL, 'A'},
+  {"read-bytes", required_argument, NULL, 'N'},
+  {"format", required_argument, NULL, 't'},
+  {"output-duplicates", no_argument, NULL, 'v'},
+  {"strings", optional_argument, NULL, 'S'},
+  {"traditional", no_argument, NULL, TRADITIONAL_OPTION},
+  {"width", optional_argument, NULL, 'w'},
+  {"endian", required_argument, NULL, ENDIAN_OPTION },
 
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -381,41 +380,82 @@ suffixes may be . for octal and b for multiply by 512.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -A, --address-radix=RADIX   output format for file offsets; RADIX is one\n\
-                                of [doxn], for Decimal, Octal, Hex or None\n\
-      --endian={big|little}   swap input bytes according the specified order\n\
-  -j, --skip-bytes=BYTES      skip BYTES input bytes first\n\
-"), stdout);
-      fputs (_("\
-  -N, --read-bytes=BYTES      limit dump to BYTES input bytes\n\
-  -S BYTES, --strings[=BYTES]  show only NUL terminated strings\n\
-                                of at least BYTES (3) printable characters\n\
-  -t, --format=TYPE           select output format or formats\n\
-  -v, --output-duplicates     do not use * to mark line suppression\n\
-  -w[BYTES], --width[=BYTES]  output BYTES bytes per output line;\n\
-                                32 is implied when BYTES is not specified\n\
-      --traditional           accept arguments in third form above\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -A, --address-radix=RADIX\n\
+         output format for file offsets;\n\
+         RADIX is one of [doxn], for Decimal, Octal, Hex or None\n\
+"));
+      oputs (_("\
+      --endian={big|little}\n\
+         swap input bytes according the specified order\n\
+"));
+      oputs (_("\
+  -j, --skip-bytes=BYTES\n\
+         skip BYTES input bytes first\n\
+"));
+      oputs (_("\
+  -N, --read-bytes=BYTES\n\
+         limit dump to BYTES input bytes\n\
+"));
+      oputs (_("\
+  -S BYTES, --strings[=BYTES]\n\
+         show only NUL terminated strings\n\
+         of at least BYTES (default 3) printable characters\n\
+"));
+      oputs (_("\
+  -t, --format=TYPE\n\
+         select output format or formats\n\
+"));
+      oputs (_("\
+  -v, --output-duplicates\n\
+         do not use * to mark line suppression\n\
+"));
+      oputs (_("\
+  -w[BYTES], --width[=BYTES]\n\
+         output BYTES bytes per output line;\n\
+         32 is implied when BYTES is not specified\n\
+"));
+      oputs (_("\
+      --traditional\n\
+         accept arguments in third form above\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 \n\
 Traditional format specifications may be intermixed; they accumulate:\n\
+"), stdout);
+      oputs (_("\
   -a   same as -t a,  select named characters, ignoring high-order bit\n\
+"));
+      oputs (_("\
   -b   same as -t o1, select octal bytes\n\
+"));
+      oputs (_("\
   -c   same as -t c,  select printable characters or backslash escapes\n\
+"));
+      oputs (_("\
   -d   same as -t u2, select unsigned decimal 2-byte units\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -f   same as -t fF, select floats\n\
+"));
+      oputs (_("\
   -i   same as -t dI, select decimal ints\n\
+"));
+      oputs (_("\
   -l   same as -t dL, select decimal longs\n\
+"));
+      oputs (_("\
   -o   same as -t o2, select octal 2-byte units\n\
+"));
+      oputs (_("\
   -s   same as -t d2, select decimal 2-byte units\n\
+"));
+      oputs (_("\
   -x   same as -t x2, select hexadecimal 2-byte units\n\
-"), stdout);
+"));
       fputs (_("\
 \n\
 \n\
@@ -761,7 +801,7 @@ decode_one_format (char const *s_orig, char const *s, char const **next,
             size = sizeof (unsigned int);
           else
             {
-              if (ARRAY_CARDINALITY (integral_type_size) <= size
+              if (countof (integral_type_size) <= size
                   || integral_type_size[size] == NO_SIZE)
                 {
                   error (0, 0, _("invalid type string %s;\nthis system"
@@ -807,7 +847,7 @@ decode_one_format (char const *s_orig, char const *s, char const **next,
           break;
 
         default:
-          unreachable ();
+          affirm (false);
         }
 
       /* Prefer INT, prefer LONG to longer types,
@@ -825,7 +865,7 @@ decode_one_format (char const *s_orig, char const *s, char const **next,
            ? print_intmax
            : LONG < LONG_LONG && LONG_LONG < INTMAX && size_spec == LONG_LONG
            ? print_long_long
-           : (affirm (false), (print_function_type) nullptr));
+           : (affirm (false), (print_function_type) NULL));
       break;
 
     case 'f':
@@ -873,7 +913,7 @@ decode_one_format (char const *s_orig, char const *s, char const **next,
             size = sizeof (double);
           else
             {
-              if (ARRAY_CARDINALITY (fp_type_size) <= size
+              if (countof (fp_type_size) <= size
                   || fp_type_size[size] == NO_SIZE
                   || (! FLOAT16_SUPPORTED && BF16_SUPPORTED
                       && size == sizeof (bfloat16)))
@@ -983,11 +1023,11 @@ open_next_file (void)
   do
     {
       input_filename = *file_list;
-      if (input_filename == nullptr)
+      if (input_filename == NULL)
         return ok;
       ++file_list;
 
-      if (STREQ (input_filename, "-"))
+      if (streq (input_filename, "-"))
         {
           input_filename = _("standard input");
           in_stream = stdin;
@@ -997,17 +1037,17 @@ open_next_file (void)
       else
         {
           in_stream = fopen (input_filename, (O_BINARY ? "rb" : "r"));
-          if (in_stream == nullptr)
+          if (in_stream == NULL)
             {
               error (0, errno, "%s", quotef (input_filename));
               ok = false;
             }
         }
     }
-  while (in_stream == nullptr);
+  while (in_stream == NULL);
 
   if (0 <= end_offset && !flag_dump_strings)
-    setvbuf (in_stream, nullptr, _IONBF, 0);
+    setvbuf (in_stream, NULL, _IONBF, 0);
 
   return ok;
 }
@@ -1024,11 +1064,11 @@ check_and_close (int in_errno)
 {
   bool ok = true;
 
-  if (in_stream != nullptr)
+  if (in_stream != NULL)
     {
       if (!ferror (in_stream))
         in_errno = 0;
-      if (STREQ (file_list[-1], "-"))
+      if (streq (file_list[-1], "-"))
         clearerr (in_stream);
       else if (fclose (in_stream) != 0 && !in_errno)
         in_errno = errno;
@@ -1038,7 +1078,7 @@ check_and_close (int in_errno)
           ok = false;
         }
 
-      in_stream = nullptr;
+      in_stream = NULL;
     }
 
   if (ferror (stdout))
@@ -1093,7 +1133,7 @@ skip (intmax_t n_skip)
   if (n_skip == 0)
     return true;
 
-  while (in_stream != nullptr)	/* EOF.  */
+  while (in_stream != NULL)	/* EOF.  */
     {
       struct stat file_stats;
 
@@ -1109,8 +1149,6 @@ skip (intmax_t n_skip)
 
       if (fstat (fileno (in_stream), &file_stats) == 0)
         {
-          bool usable_size = usable_st_size (&file_stats);
-
           /* The st_size field is valid for regular files.
              If the number of bytes left to skip is larger than
              the size of the current file, we can decrement n_skip
@@ -1118,7 +1156,8 @@ skip (intmax_t n_skip)
              when st_size is no greater than the block size, because
              some kernels report nonsense small file sizes for
              proc-like file systems.  */
-          if (usable_size && STP_BLKSIZE (&file_stats) < file_stats.st_size)
+          if (S_ISREG (file_stats.st_mode)
+              && STP_BLKSIZE (&file_stats) < file_stats.st_size)
             {
               if (file_stats.st_size < n_skip)
                 n_skip -= file_stats.st_size;
@@ -1133,11 +1172,14 @@ skip (intmax_t n_skip)
                 }
             }
 
-          else if (!usable_size && fseeko (in_stream, n_skip, SEEK_CUR) == 0)
+          else if (! (S_ISREG (file_stats.st_mode)
+                      || S_TYPEISSHM (&file_stats)
+                      || S_TYPEISTMO (&file_stats))
+                   && fseeko (in_stream, n_skip, SEEK_CUR) == 0)
             n_skip = 0;
 
-          /* If it's not a regular file with nonnegative size,
-             or if it's so small that it might be in a proc-like file system,
+          /* If it's neither a seekable file with unusable size, nor a
+             regular file so large it can't be in a proc-like file system,
              position the file pointer by reading.  */
 
           else
@@ -1199,6 +1241,8 @@ format_address_std (intmax_t address, char c)
   char buf[MAX_ADDRESS_LENGTH + 2];
   char *p = buf + sizeof buf;
   char const *pbound;
+
+  affirm (0 <= address);
 
   *--p = '\0';
   *--p = c;
@@ -1271,11 +1315,9 @@ write_block (intmax_t current_offset, idx_t n_bytes,
   static bool first = true;
   static bool prev_pair_equal = false;
 
-#define EQUAL_BLOCKS(b1, b2) (memcmp (b1, b2, bytes_per_block) == 0)
-
   if (abbreviate_duplicate_blocks
       && !first && n_bytes == bytes_per_block
-      && EQUAL_BLOCKS (prev_block, curr_block))
+      && memeq (prev_block, curr_block, bytes_per_block))
     {
       if (prev_pair_equal)
         {
@@ -1370,7 +1412,7 @@ read_block (idx_t n, char *block, idx_t *n_bytes_in_buffer)
 
   *n_bytes_in_buffer = 0;
 
-  while (in_stream != nullptr)	/* EOF.  */
+  while (in_stream != NULL)	/* EOF.  */
     {
       idx_t n_needed = n - *n_bytes_in_buffer;
       idx_t n_read = fread (block + *n_bytes_in_buffer,
@@ -1403,14 +1445,14 @@ get_lcm (void)
   return l_c_m;
 }
 
-/* Act like xstrtoimax (NPTR, nullptr, BASE, VAL, VALID_SUFFIXES),
+/* Act like xstrtoimax (NPTR, NULL, BASE, VAL, VALID_SUFFIXES),
    except reject negative values, and *VAL may be set if
    LONGINT_INVALID is returned.  */
 static strtol_error
 xstr2nonneg (char const *restrict nptr, int base, intmax_t *val,
              char const *restrict valid_suffixes)
 {
-  strtol_error s_err = xstrtoimax (nptr, nullptr, base, val, valid_suffixes);
+  strtol_error s_err = xstrtoimax (nptr, NULL, base, val, valid_suffixes);
   return s_err != LONGINT_INVALID && *val < 0 ? LONGINT_INVALID : s_err;
 }
 
@@ -1435,7 +1477,7 @@ parse_old_offset (char *str, intmax_t *offset)
      it's hexadecimal, else octal.  */
   char *dot = strchr (s, '.');
   if (dot && dot[(dot[1] == 'b' || dot[1] == 'B') + 1])
-    dot = nullptr;
+    dot = NULL;
   int radix = dot ? 10 : s[0] == '0' && (s[1] == 'x' || s[1] == 'X') ? 16 : 8;
 
   if (dot)
@@ -1459,6 +1501,17 @@ parse_old_offset (char *str, intmax_t *offset)
   return s_err == LONGINT_OK;
 }
 
+/* Add COUNT to OFFSET, and return the result.
+   If an overflow occurs, exit the program with an error message.  */
+
+static intmax_t
+offset_add (intmax_t offset, intmax_t const count)
+{
+  if (ckd_add (&offset, offset, count))
+    error (EXIT_FAILURE, 0, _("offset overflow"));
+  return offset;
+}
+
 /* Read a chunk of size BYTES_PER_BLOCK from the input files, write the
    formatted block to standard output, and repeat until the specified
    maximum number of bytes has been read or until all input has been
@@ -1479,12 +1532,12 @@ dump (void)
   bool ok = true;
   idx_t n_bytes_read;
 
-  block[0] = xinmalloc (2, bytes_per_block);
-  block[1] = block[0] + bytes_per_block;
+  block[0] = xinmalloc (1 + abbreviate_duplicate_blocks, bytes_per_block);
+  block[1] = block[0] + abbreviate_duplicate_blocks * bytes_per_block;
 
   intmax_t current_offset = n_bytes_to_skip;
 
-  do
+  while (true)
     {
       intmax_t needed_bound
         = end_offset < 0 ? INTMAX_MAX : end_offset - current_offset;
@@ -1501,11 +1554,10 @@ dump (void)
       write_block (current_offset, n_bytes_read,
                    block[!idx], block[idx]);
       if (ferror (stdout))
-        ok = false;
-      current_offset += n_bytes_read;
+        write_error ();
+      current_offset = offset_add (current_offset, n_bytes_read);
       idx = !idx;
     }
-  while (ok);
 
   if (n_bytes_read > 0)
     {
@@ -1518,10 +1570,11 @@ dump (void)
 
       memset (block[idx] + n_bytes_read, 0, bytes_to_write - n_bytes_read);
       write_block (current_offset, n_bytes_read, block[!idx], block[idx]);
-      current_offset += n_bytes_read;
+      current_offset = offset_add (current_offset, n_bytes_read);
     }
 
-  format_address (current_offset, '\n');
+  if (ok || current_offset)
+    format_address (current_offset, '\n');
 
   if (0 <= end_offset && end_offset <= current_offset)
     ok &= check_and_close (0);
@@ -1565,7 +1618,7 @@ dump_strings (void)
               free (buf);
               return ok;
             }
-          address++;
+          address = offset_add (address, 1);
           buf[i++] = c;
           if (c == '\0')
             break;		/* Print this string.  */
@@ -1622,6 +1675,8 @@ dump_strings (void)
             }
         }
       putchar ('\n');
+      if (ferror (stdout))
+        write_error ();
     }
 
   /* We reach this point only if we search through
@@ -1719,7 +1774,7 @@ main (int argc, char **argv)
 
         case 'S':
           modern = true;
-          if (optarg == nullptr)
+          if (optarg == NULL)
             string_min = 3;
           else
             {
@@ -1798,7 +1853,7 @@ main (int argc, char **argv)
 
         case 'w':
           modern = true;
-          if (optarg == nullptr)
+          if (optarg == NULL)
             {
               desired_width = 32;
             }
@@ -1950,12 +2005,12 @@ main (int argc, char **argv)
 
   /* open the first input file */
   ok = open_next_file ();
-  if (in_stream == nullptr)
+  if (in_stream == NULL)
     goto cleanup;
 
   /* skip over any unwanted header bytes */
   ok &= skip (n_bytes_to_skip);
-  if (in_stream == nullptr)
+  if (in_stream == NULL)
     goto cleanup;
 
   pseudo_offset = (flag_pseudo_start ? pseudo_start - n_bytes_to_skip : 0);
@@ -2007,7 +2062,7 @@ main (int argc, char **argv)
       idx_t fields_per_block = bytes_per_block / width_bytes[spec[i].size];
       affirm (bytes_per_block % width_bytes[spec[i].size] == 0);
       affirm (1 <= spec[i].pad_width / fields_per_block);
-      printf ("%d: fmt=\"%s\" in_width=%d out_width=%d pad=%d\n",
+      printf ("%td: fmt=\"%s\" in_width=%d out_width=%d pad=%td\n",
               i, spec[i].fmt_string, width_bytes[spec[i].size],
               spec[i].field_width, spec[i].pad_width);
     }

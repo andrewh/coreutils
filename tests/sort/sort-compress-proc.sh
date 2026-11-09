@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test use of compression subprocesses by sort
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,13 +21,13 @@ print_ver_ sort
 expensive_
 
 # Terminate any background processes
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 SORT_FAILURE=2
 
-seq -w 2000 > exp || fail=1
-tac exp > in || fail=1
-insize=$(stat -c %s - <in) || fail=1
+seq -w 2000 > exp || framework_failure_
+tac exp > in || framework_failure_
+insize=$(stat -c %s - <in) || framework_failure_
 
 # This compressor's behavior is adjustable via environment variables.
 export PRE_COMPRESS=
@@ -41,6 +41,24 @@ eval "$POST_COMPRESS"
 EOF
 
 chmod +x compress
+
+# "Early exit" test
+#
+# In this test, the compressor exits before reading all (any) data.
+# Until coreutils 9.9 'sort' could get a SIGPIPE writing to the
+# exited processes and silently exit.  Note the same issue can happen
+# irrespective of exit status.  It's more likely to happen in the
+# case of the child exiting with success, and if we write more data
+# (hence the --batch-size=30 and double "in").  Note we check sort doesn't
+# get SIGPIPE rather than if it returns SORT_FAILURE, because there is
+# the theoretical possibility that the kernel could buffer the
+# amount of data we're writing here and not issue the EPIPE to sort.
+# In other words we currently may not detect failures in the extreme edge case
+# of writing a small amount of data to a compressor that exits 0
+# while not reading all the data presented.
+PRE_COMPRESS='exit 0' \
+ sort --compress-program=./compress -S 1k --batch-size=30 ./in ./in > out
+test $(kill -l $?) = 'PIPE' && fail=1
 
 # "Impatient exit" tests
 #

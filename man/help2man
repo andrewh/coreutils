@@ -49,7 +49,10 @@ sub program_basename;
 sub get_option_value;
 sub convert_option;
 sub fix_italic_spacing;
+sub generic_indented_tag_line;
+sub indented_tag_line;
 sub set_indent;
+sub visual_length;
 
 my $version_info = enc_user sprintf _(<<'EOT'), $this_program, $this_version;
 GNU %s %s
@@ -276,6 +279,10 @@ my $program = program_basename $ARGV[0];
 my $package = $program;
 my $version;
 
+# Normalize help text that embeds argv[0], so examples are formatted
+# using the displayed program name rather than a temporary build path.
+$help_text =~ s/\Q$ARGV[0]\E/$program/g if $ARGV[0] ne $program;
+
 if ($opt_output)
 {
     unlink $opt_output or kark N_("%s: can't unlink %s (%s)"),
@@ -406,7 +413,7 @@ if ($help_text =~ s/^($PAT_USAGE):( +(\S+))(.*)((?:\n(?: {6}\1| *($PAT_USAGE_CON
 my $sect = _('DESCRIPTION');
 $_ = "$help_text\n\n$version_text";
 
-# Normalise paragraph breaks.
+# Normalize paragraph breaks.
 s/^\n+//;
 s/\n*$/\n/;
 s/\n\n+/\n\n/g;
@@ -447,27 +454,33 @@ s/([^\n])\n($PAT_BUGS|$PAT_AUTHOR|$PAT_SEE_ALSO) /$1\n\n$2 /og;
 s/^Copyright +(?:\xa9|\([Cc]\))/Copyright \\(co/mg;
 
 my $require_mono = 0;
+my $compact_indented_tags = 0;
+my $blank_before_paragraph = 0;
 while (length)
 {
     # Convert some standard paragraph names.
     if (s/^($PAT_OPTIONS): *\n+//o)
     {
 	$sect = _('OPTIONS');
+	$blank_before_paragraph = 0;
 	next;
     }
     if (s/^($PAT_ENVIRONMENT): *\n+//o)
     {
 	$sect = _('ENVIRONMENT');
+	$blank_before_paragraph = 0;
 	next;
     }
     if (s/^($PAT_FILES): *\n+//o)
     {
 	$sect = _('FILES');
+	$blank_before_paragraph = 0;
 	next;
     }
     elsif (s/^($PAT_EXAMPLES): *\n+//o)
     {
 	$sect = _('EXAMPLES');
+	$blank_before_paragraph = 0;
 	next;
     }
 
@@ -477,6 +490,7 @@ while (length)
 	$sect = uc $1;
 	$sect =~ tr/*/ /;  # also accept *Section*Name*
 	push @sections, $sect;
+	$blank_before_paragraph = 0;
 	next;
     }
 
@@ -532,17 +546,19 @@ while (length)
 
     my $indent = 0;
     my $content = '';
+    my $tag_line_indent;
+    my $tag_line_width;
 
     # Option with description.
-    if (s/^( {1,10}([+-]\S.*?))(?:(  +(?!-))|\n( {20,}))(\S.*)\n//)
+    if (s/^( {1,10}([+-]\S.*?))(?:(  +(?!-))|\n( {7,}))(\S.*)\n//)
     {
 	$matched .= $& if %append_match;
-	$indent = set_indent length ($4 || "$1$3");
+	$indent = set_indent visual_length ($4 || "$1$3");
 	$content = ".TP\n\x84$2\n\x84$5\n";
 	unless ($4)
 	{
 	    # Indent may be different on second line.
-	    $indent = set_indent length $& if /^ {20,}/;
+	    $indent = set_indent visual_length $& if /^ {20,}/;
 	}
     }
 
@@ -555,18 +571,21 @@ while (length)
     }
 
     # Indented paragraph with tag.
-    elsif (s/^( +(\S.*?)  +)(\S.*)\n//)
+    elsif (s/^(( +)(\S.*?)  +)(\S.*)\n//)
     {
 	$matched .= $& if %append_match;
-	$indent = set_indent length $1;
-	$content = ".TP\n\x84$2\n\x84$3\n";
+	$tag_line_width = (visual_length $1) - (visual_length $2);
+	$tag_line_width = 1 if $tag_line_width < 1;
+	$indent = set_indent $tag_line_width;
+	$content = ".TP\n\x84$3\n\x84$4\n";
+	$tag_line_indent = $2;
     }
 
     # Indented paragraph.
     elsif (s/^( +)(\S.*)\n//)
     {
 	$matched .= $& if %append_match;
-	$indent = set_indent length $1;
+	$indent = set_indent visual_length $1;
 	$content = ".IP\n\x84$2\n";
     }
 
@@ -586,8 +605,42 @@ while (length)
 	$content .= "\x84$1\n";
     }
 
-    # Move to next paragraph.
-    s/^\n+//;
+    # Consecutive generic tagged rows are dense tables.  Keep .TP's
+    # hanging indentation, but suppress inter-paragraph distance.
+    my $is_indented_tag = $content =~ /^\.TP\n/ && defined $tag_line_indent;
+    my $next_indented_tag = $is_indented_tag
+	&& indented_tag_line ($_, $tag_line_indent);
+    my $compact_this_tag = $is_indented_tag
+	&& ($compact_indented_tags || $next_indented_tag);
+    my $preserve_blank_after = 0;
+
+    if ($compact_this_tag)
+    {
+	$content =~ s/^\.TP\n/.TP $tag_line_width\n/;
+	unless ($compact_indented_tags)
+	{
+	    $content = ".PD 0\n$content";
+	    $content = ".PP\n$content" if $blank_before_paragraph;
+	    $compact_indented_tags = 1;
+	}
+	unless ($next_indented_tag)
+	{
+	    $content .= ".PD\n";
+	    (my $next_paragraph = $_) =~ s/^\n+//;
+	    $preserve_blank_after = /^\n/
+		&& generic_indented_tag_line $next_paragraph;
+	    $content .= ".PP\n" if $preserve_blank_after;
+	    $compact_indented_tags = 0;
+	}
+    }
+    elsif ($compact_indented_tags)
+    {
+	$content = ".PD\n$content";
+	$compact_indented_tags = 0;
+    }
+
+    $blank_before_paragraph = s/^\n+//;
+    $blank_before_paragraph = 0 if $preserve_blank_after;
 
     for ($content)
     {
@@ -600,9 +653,14 @@ while (length)
 	unless ($sect eq _('EXAMPLES'))
 	{
 	    # Convert options.
-	    s/(^|[ (])(-[][\w=-]+)/$1 . convert_option $2/mge;
+	    s/
+		(
+		  ^|[ (])(-[][\w-]+             # Base -o or --option match
+		  (?:=\S*[^\s,.])?              # =parameter portion match
+		)
+	    /$1 . convert_option $2/xmge;
 
-	    # Italicise filenames: /a/b, $VAR/c/d, ~/e/f
+	    # Italicize filenames: /a/b, $VAR/c/d, ~/e/f
 	    s!
 		(^|[ (])			# space/punctuation before
 		(
@@ -719,6 +777,19 @@ my @post = (_('ENVIRONMENT'), _('FILES'), _('AUTHOR'),
     _('REPORTING BUGS'), _('COPYRIGHT'), _('SEE ALSO'));
 my %filter = map { $_ => 1 } @pre, @post;
 
+# Global storage for OSC 8 hyperlink URLs
+our @hyperlink_urls;
+
+# Helper to convert hyperlink markers to roff \X escapes
+sub convert_hyperlink {
+    my ($dashes, $idx, $text) = @_;
+    my $url = $hyperlink_urls[$idx];
+    my $full = $dashes . $text;
+    $full =~ s/\\f[BIRP]//g;
+    $full = "\\fB$full\\fP" if $opt_bold_refs;
+    return "\\X'tty: link $url'$full\\X'tty: link'";
+}
+
 # Output content.
 my %done;
 for my $sect (@pre, (grep !$filter{$_}, @sections), @post)
@@ -745,6 +816,10 @@ for my $sect (@pre, (grep !$filter{$_}, @sections), @post)
 	    s/\x81/\\&'/g;
 	    s/\x82/\\e/g;
 	    s/\x83/\\-/g;
+
+	    # Convert hyperlink markers to roff \X escape sequences
+	    s{((?:\+|(?:(?:\\f.)?\\-(?:\\-)?(?:\\f.)?))?)\x01(\d+)\x02(.*?)\x03}
+	     {convert_hyperlink($1, $2, $3)}gse;
 
 	    # Convert some latin1 chars to troff equivalents.
 	    s/\xa0/\\ /g;  # non-breaking space
@@ -788,17 +863,36 @@ sub get_option_value
 	kark $err, $this_program, $opt, $prog, $extra;
     }
 
+    # Strip ANSI SGR formatting codes (colors, bold, etc.)
+    $value =~ s/\x1b\[[0-9;]*m//g;
+
+    # Convert OSC 8 hyperlinks to markers placed after any leading dashes/plus
+    # This preserves help2man's option detection (which looks for /^  +[-+]/)
+    # Support both BEL (\x07) and ST (\x1b\) terminators
+    $value =~ s/
+        \x1b\]8;;([^\x07\x1b]*)(?:\x07|\x1b\\)  # opening OSC 8 with URL
+        (\+|--?)?(.*?)                          # optional +, -, or -- and link text
+        \x1b\]8;;(?:\x07|\x1b\\)                # closing OSC 8
+    /{
+        my $idx = scalar @hyperlink_urls;
+        push @hyperlink_urls, $1;
+        my $dashes = $2 || "";
+        "$dashes\x01$idx\x02$3\x03";
+    }/gsex;
+
     $value;
 }
 
 # Convert option dashes to \- to stop nroff from hyphenating 'em, and
-# embolden.  Option arguments get italicised.
+# embolden.  Option arguments get italicized.
 sub convert_option
 {
     local $_ = '\fB' . shift;
 
     s/-/\x83/g;
-    unless (s/\[=(.*)\]$/\\fR[=\\fI$1\\fR]/)
+    unless (
+        s/\x83(\w)\[(.*)\]/\x83$1\\fR[\\fI$2\\fR]/ or  # short form [optional]
+        s/\[=(.*)\]$/\\fR[=\\fI$1\\fR]/)               # long form [optional]
     {
 	s/=(.)/\\fR=\\fI$1/;
 	s/ (.)/ \\fI$1/;
@@ -817,6 +911,27 @@ sub fix_italic_spacing
     return $_;
 }
 
+# Return true if text starts with a generic indented tag row using
+# the same leading indentation.  Option rows are handled separately.
+sub generic_indented_tag_line
+{
+    my $text = shift;
+
+    return 0 unless $text =~ /^ +\S.*?  +\S.*\n/;
+    return 0 if $text
+	=~ /^( {1,10}[+-]\S.*?)(?:(  +(?!-))|\n( {7,}))(\S.*)\n/;
+    return 0 if $text =~ /^ {1,10}[+-]\S.*\n/;
+    return 1;
+}
+
+sub indented_tag_line
+{
+    my ($text, $leading_indent) = @_;
+
+    return $text =~ /^\Q$leading_indent\E/
+	&& generic_indented_tag_line $text;
+}
+
 # Return indent to use: either the value passed in, or $v,$v+4 if
 # loose index matching is used.  The resulting string is used in a
 # regex as " {$indent}", so will match either the exact number of
@@ -827,4 +942,14 @@ sub set_indent
     my $i = $_[0];
     $i .= ',' . ($_[0] + 4) if $loose_indent;
     return $i;
+}
+
+# Return visual length of a string, ignoring hyperlink markers.
+# Markers are \x01<digits>\x02 (opening) and \x03 (closing).
+sub visual_length
+{
+    local $_ = shift;
+    s/\x01\d+\x02//g;
+    s/\x03//g;
+    return length;
 }

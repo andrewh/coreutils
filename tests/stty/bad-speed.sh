@@ -2,7 +2,7 @@
 # Ensure we handle cfsetispeed failing
 # which we did not before coreutils v9.1
 
-# Copyright (C) 2025 Free Software Foundation, Inc.
+# Copyright (C) 2025-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ stty
+require_controlling_input_terminal_
 require_gcc_shared_
 
 # Replace each cfsetispeed call with a call to these stubs.
@@ -42,9 +43,13 @@ EOF
 gcc_shared_ k.c k.so \
   || skip_ 'failed to build shared library'
 
-( export LD_PRELOAD=$LD_PRELOAD:./k.so
-  returns_ 1 stty ispeed 9600 ) || fail=1
+# Generate the witness file
+LD_PRELOAD=$LD_PRELOAD:./k.so stty ispeed 9600
 
 test -e preloaded || skip_ 'LD_PRELOAD interception failed'
+
+# Ensure failure is diagnosed
+( export LD_PRELOAD=$LD_PRELOAD:./k.so
+  returns_ 1 stty ispeed 9600 ) || fail=1
 
 Exit $fail

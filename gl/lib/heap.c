@@ -1,6 +1,6 @@
 /* Barebones heap implementation supporting only insert and pop.
 
-   Copyright (C) 2010-2025 Free Software Foundation, Inc.
+   Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ heap_alloc (int (*compare) (void const *, void const *), idx_t n_reserve)
 
   heap->array = xnmalloc (n_reserve, sizeof *(heap->array));
 
-  heap->array[0] = nullptr;
+  heap->array[0] = NULL;
   heap->capacity = n_reserve;
   heap->count = 0;
   heap->compare = compare ? compare : heap_default_compare;
@@ -96,7 +96,7 @@ heap_remove_top (struct heap *heap)
   void *top;
 
   if (heap->count == 0)
-    return nullptr;
+    return NULL;
 
   top = heap->array[1];
   heap->array[1] = heap->array[heap->count--];

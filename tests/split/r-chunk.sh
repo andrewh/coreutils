@@ -1,7 +1,7 @@
 #!/bin/sh
 # test splitting into round-robin chunks
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ compare exp out || fail=1
 # Ensure we fall back to appending to a file at a time
 # if we hit the limit for the number of open files.
 rm x*
-(ulimit -n 20 && yes | head -n90 | split -n r/30 ) || fail=1
+(ulimit -n 20; yes | head -n90 | split -n r/30 ) || fail=1
 test "$(stat -c %s x* | uniq -c | sed 's/^ *//; s/ /x/')" = "30x6" || fail=1
 
 Exit $fail

@@ -1,5 +1,5 @@
 /* stty -- change and print terminal line settings
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
    Options:
    -a, --all    Write all current settings to stdout in human-readable form.
    -g, --save   Write all current settings to stdout in stty-readable form.
-   -F, --file   Open and use the specified device instead of stdin
+   -F, --file   Open and use the specified device instead of standard input.
 
    If no args are given, write to stdout the baud rate and settings that
    have been changed from their defaults.  Mode reading and changes
@@ -130,9 +130,6 @@
 #endif
 #if defined VDSUSP && !defined CDSUSP
 # define CDSUSP Control ('y')
-#endif
-#if !defined VREPRINT && defined VRPRNT /* Irix 4.0.5 */
-# define VREPRINT VRPRNT
 #endif
 #if defined VREPRINT && !defined CRPRNT
 # define CRPRNT Control ('r')
@@ -376,7 +373,7 @@ static struct mode_info const mode_info[] =
   {"crt", combination, OMIT, 0, 0},
   {"dec", combination, OMIT, 0, 0},
 
-  {nullptr, control, 0, 0, 0}
+  {NULL, control, 0, 0, 0}
 };
 
 /* Control character settings.  */
@@ -433,7 +430,18 @@ static struct control_info const control_info[] =
   /* These must be last because of the display routines. */
   {"min", 1, VMIN},
   {"time", 0, VTIME},
-  {nullptr, 0, 0}
+  {NULL, 0, 0}
+};
+
+/* This struct is needed because some systems, e.g., GNU/Linux,
+   support baud rates equal to (speed_t) -1.  */
+struct speed_desc
+{
+  /* The baud rate.  */
+  speed_t baud;
+
+  /* True if the baud member is valid and did not overflow.  */
+  bool valid;
 };
 
 static char const *visible (cc_t ch);
@@ -442,9 +450,12 @@ static bool recover_mode (char const *arg, struct termios *mode);
 static int screen_columns (void);
 static bool set_mode (struct mode_info const *info, bool reversed,
                       struct termios *mode);
-static bool eq_mode (struct termios *mode1, struct termios *mode2);
+static bool eq_mode (struct termios const *mode1,
+                     struct termios const *mode2);
+static bool speed_matches (struct termios const *mode1,
+                           struct termios const *mode2);
 static uintmax_t integer_arg (char const *s, uintmax_t max);
-static speed_t string_to_baud (char const *arg);
+static struct speed_desc string_to_baud (char const *arg);
 static tcflag_t *mode_type_flag (enum mode_type type, struct termios *mode);
 static void display_all (struct termios *mode, char const *device_name);
 static void display_changed (struct termios *mode);
@@ -460,7 +471,7 @@ static void set_control_char (struct control_info const *info,
                               char const *arg,
                               struct termios *mode);
 static void set_speed (enum speed_setting type, char const *arg,
-                       struct termios *mode);
+                       struct speed_desc const speed, struct termios *mode);
 static void set_window_size (int rows, int cols, char const *device_name);
 
 /* The width of the screen, for output wrapping. */
@@ -476,8 +487,10 @@ static int tcsetattr_options = TCSADRAIN;
 static bool dev_debug;
 
 /* Record last speed set for correlation.  */
-static speed_t last_ibaud = (speed_t) -1;
-static speed_t last_obaud = (speed_t) -1;
+static struct speed_desc last_ibaud =
+  { .baud = (speed_t) -1, .valid = false };
+static struct speed_desc last_obaud =
+  { .baud = (speed_t) -1, .valid = false };
 
 /* For long options that have no equivalent short option, use a
    non-character as a pseudo short option, starting with CHAR_MAX + 1.  */
@@ -488,13 +501,13 @@ enum
 
 static struct option const longopts[] =
 {
-  {"all", no_argument, nullptr, 'a'},
-  {"save", no_argument, nullptr, 'g'},
-  {"file", required_argument, nullptr, 'F'},
-  {"-debug", no_argument, nullptr, DEV_DEBUG_OPTION},
+  {"all", no_argument, NULL, 'a'},
+  {"save", no_argument, NULL, 'g'},
+  {"file", required_argument, NULL, 'F'},
+  {"-debug", no_argument, NULL, DEV_DEBUG_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Print format string MESSAGE and optional args.
@@ -554,13 +567,17 @@ Print or change terminal characteristics.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
+      oputs (_("\
   -a, --all          print all current settings in human-readable form\n\
+"));
+      oputs (_("\
   -g, --save         print all current settings in a stty-readable form\n\
-  -F, --file=DEVICE  open and use the specified DEVICE instead of stdin\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+"));
+      oputs (_("\
+  -F, --file=DEVICE  open and use DEVICE instead of standard input\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 Optional - before SETTING indicates negation.  An * marks non-POSIX\n\
@@ -1118,7 +1135,6 @@ apply_settings (bool checking, char const *device_name,
       bool match_found = false;
       bool not_set_attr = false;
       bool reversed = false;
-      int i;
 
       if (! arg)
         continue;
@@ -1128,14 +1144,14 @@ apply_settings (bool checking, char const *device_name,
           ++arg;
           reversed = true;
         }
-      if (STREQ (arg, "drain"))
+      if (streq (arg, "drain"))
         {
           tcsetattr_options = reversed ? TCSANOW : TCSADRAIN;
           continue;
         }
-      for (i = 0; mode_info[i].name != nullptr; ++i)
+      for (int i = 0; mode_info[i].name != NULL; ++i)
         {
-          if (STREQ (arg, mode_info[i].name))
+          if (streq (arg, mode_info[i].name))
             {
               if ((mode_info[i].flags & NO_SETATTR) == 0)
                 {
@@ -1154,9 +1170,9 @@ apply_settings (bool checking, char const *device_name,
         }
       if (!match_found)
         {
-          for (i = 0; control_info[i].name != nullptr; ++i)
+          for (int i = 0; control_info[i].name != NULL; ++i)
             {
-              if (STREQ (arg, control_info[i].name))
+              if (streq (arg, control_info[i].name))
                 {
                   check_argument (arg);
                   match_found = true;
@@ -1169,30 +1185,32 @@ apply_settings (bool checking, char const *device_name,
         }
       if (!match_found || not_set_attr)
         {
-          if (STREQ (arg, "ispeed"))
+          if (streq (arg, "ispeed"))
             {
               check_argument (arg);
               ++k;
-              if (string_to_baud (settings[k]) == (speed_t) -1)
+              struct speed_desc const ispeed = string_to_baud (settings[k]);
+              if (! ispeed.valid)
                 {
                   error (0, 0, _("invalid ispeed %s"), quote (settings[k]));
                   usage (EXIT_FAILURE);
                 }
-              set_speed (input_speed, settings[k], mode);
+              set_speed (input_speed, settings[k], ispeed, mode);
               if (checking)
                 continue;
               *require_set_attr = true;
             }
-          else if (STREQ (arg, "ospeed"))
+          else if (streq (arg, "ospeed"))
             {
               check_argument (arg);
               ++k;
-              if (string_to_baud (settings[k]) == (speed_t) -1)
+              struct speed_desc const ospeed = string_to_baud (settings[k]);
+              if (! ospeed.valid)
                 {
                   error (0, 0, _("invalid ospeed %s"), quote (settings[k]));
                   usage (EXIT_FAILURE);
                 }
-              set_speed (output_speed, settings[k], mode);
+              set_speed (output_speed, settings[k], ospeed, mode);
               if (checking)
                 continue;
               *require_set_attr = true;
@@ -1200,7 +1218,7 @@ apply_settings (bool checking, char const *device_name,
 #ifdef TIOCEXT
           /* This is the BSD interface to "extproc".
             Even though it's an lflag, an ioctl is used to set it.  */
-          else if (STREQ (arg, "extproc"))
+          else if (streq (arg, "extproc"))
             {
               int val = ! reversed;
 
@@ -1213,7 +1231,7 @@ apply_settings (bool checking, char const *device_name,
             }
 #endif
 #ifdef TIOCGWINSZ
-          else if (STREQ (arg, "rows"))
+          else if (streq (arg, "rows"))
             {
               check_argument (arg);
               ++k;
@@ -1222,8 +1240,8 @@ apply_settings (bool checking, char const *device_name,
               set_window_size (integer_arg (settings[k], INT_MAX), -1,
                                device_name);
             }
-          else if (STREQ (arg, "cols")
-                   || STREQ (arg, "columns"))
+          else if (streq (arg, "cols")
+                   || streq (arg, "columns"))
             {
               check_argument (arg);
               ++k;
@@ -1232,7 +1250,7 @@ apply_settings (bool checking, char const *device_name,
               set_window_size (-1, integer_arg (settings[k], INT_MAX),
                                device_name);
             }
-          else if (STREQ (arg, "size"))
+          else if (streq (arg, "size"))
             {
               if (checking)
                 continue;
@@ -1242,7 +1260,7 @@ apply_settings (bool checking, char const *device_name,
             }
 #endif
 #ifdef HAVE_C_LINE
-          else if (STREQ (arg, "line"))
+          else if (streq (arg, "line"))
             {
               check_argument (arg);
               ++k;
@@ -1253,28 +1271,32 @@ apply_settings (bool checking, char const *device_name,
               *require_set_attr = true;
             }
 #endif
-          else if (STREQ (arg, "speed"))
+          else if (streq (arg, "speed"))
             {
               if (checking)
                 continue;
               max_col = screen_columns ();
               display_speed (mode, false);
             }
-          else if (string_to_baud (arg) != (speed_t) -1)
-            {
-              set_speed (both_speeds, arg, mode);
-              if (checking)
-                continue;
-              *require_set_attr = true;
-            }
           else
             {
-              if (! recover_mode (arg, mode))
+              struct speed_desc const speed = string_to_baud (arg);
+              if (speed.valid)
                 {
-                  error (0, 0, _("invalid argument %s"), quote (arg));
-                  usage (EXIT_FAILURE);
+                  set_speed (both_speeds, arg, speed, mode);
+                  if (checking)
+                    continue;
+                  *require_set_attr = true;
                 }
-              *require_set_attr = true;
+              else
+                {
+                  if (! recover_mode (arg, mode))
+                    {
+                      error (0, 0, _("invalid argument %s"), quote (arg));
+                      usage (EXIT_FAILURE);
+                    }
+                  *require_set_attr = true;
+                }
             }
         }
     }
@@ -1286,7 +1308,7 @@ apply_settings (bool checking, char const *device_name,
 int
 main (int argc, char **argv)
 {
-  /* Initialize to all zeroes so there is no risk memcmp will report a
+  /* Initialize to all zeroes so there is no risk memeq will report a
      spurious difference in an uninitialized portion of the structure.  */
   static struct termios mode;
 
@@ -1298,7 +1320,7 @@ main (int argc, char **argv)
   bool verbose_output;
   bool recoverable_output;
   bool noargs = true;
-  char *file_name = nullptr;
+  char *file_name = NULL;
   char const *device_name;
 
   initialize_main (&argc, &argv);
@@ -1324,7 +1346,7 @@ main (int argc, char **argv)
      short and long options, --, POSIXLY_CORRECT, etc.  */
 
   while ((optc = getopt_long (argc - argi, argv + argi, "-agF:",
-                              longopts, nullptr))
+                              longopts, NULL))
          != -1)
     {
       switch (optc)
@@ -1356,8 +1378,8 @@ main (int argc, char **argv)
         default:
           /* Consider "drain" as an option rather than a setting,
              to support: alias stty='stty -drain'  etc.  */
-          if (! STREQ (argv[argi + opti], "-drain")
-              && ! STREQ (argv[argi + opti], "drain"))
+          if (! streq (argv[argi + opti], "-drain")
+              && ! streq (argv[argi + opti], "drain"))
             noargs = false;
 
           /* Skip the argument containing this unrecognized option;
@@ -1373,7 +1395,7 @@ main (int argc, char **argv)
 
       /* Clear fully-parsed arguments, so they don't confuse the 2nd pass.  */
       while (opti < optind)
-        argv[argi + opti++] = nullptr;
+        argv[argi + opti++] = NULL;
     }
 
   /* Specifying both -a and -g gets an error.  */
@@ -1424,7 +1446,7 @@ main (int argc, char **argv)
 
   if (require_set_attr)
     {
-      /* Initialize to all zeroes so there is no risk memcmp will report a
+      /* Initialize to all zeroes so there is no risk memeq will report a
          spurious difference in an uninitialized portion of the structure.  */
       static struct termios new_mode;
 
@@ -1464,21 +1486,45 @@ main (int argc, char **argv)
   return EXIT_SUCCESS;
 }
 
-/* Return true if modes are equivalent.  */
+/* Return true if modes are equivalent.
 
+   However, the speed detection is a bit finicky:
+
+   1. the kernel MAY round the speed to the nearest supported
+      value, so allow a variation of +/- 1/4 bit time per character from
+      what was originally requested.
+
+   2. There MAY be more than one internal binary encoding of a specific
+      speed (e.g. on Linux).  On systems where that information
+      affects c_cflag, this may introduce inconsistencies.
+
+   3. An input speed of zero may be retained or normalized to the output
+      speed across tcsetattr () ... tcgetattr ().  */
 static bool
-eq_mode (struct termios *mode1, struct termios *mode2)
+eq_mode (struct termios const *mode1, struct termios const *mode2)
 {
-  return mode1->c_iflag == mode2->c_iflag
-      && mode1->c_oflag == mode2->c_oflag
-      && mode1->c_cflag == mode2->c_cflag
-      && mode1->c_lflag == mode2->c_lflag
+  if (mode1->c_iflag != mode2->c_iflag
+      || mode1->c_oflag != mode2->c_oflag
+      || mode1->c_lflag != mode2->c_lflag
 #ifdef HAVE_C_LINE
-      && mode1->c_line == mode2->c_line
+      || mode1->c_line != mode2->c_line
 #endif
-      && memcmp (mode1->c_cc, mode2->c_cc, sizeof (mode1->c_cc)) == 0
-      && cfgetispeed (mode1) == cfgetispeed (mode2)
-      && cfgetospeed (mode1) == cfgetospeed (mode2);
+      || !memeq (mode1->c_cc, mode2->c_cc, sizeof (mode1->c_cc)))
+    return false;
+
+  /* Strip known baud-related flags from c_cflag before comparison.  */
+  tcflag_t cflag_mask = ~(tcflag_t) 0;
+#ifdef CBAUD
+  cflag_mask &= ~(tcflag_t) CBAUD;
+#endif
+#ifdef CIBAUD
+  cflag_mask &= ~(tcflag_t) CIBAUD;
+#endif
+
+  if ((mode1->c_cflag ^ mode2->c_cflag) & cflag_mask)
+    return false;
+
+  return speed_matches (mode1, mode2);
 }
 
 /* Return false if not applied because not reversible; otherwise
@@ -1494,24 +1540,24 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
 
   bitsp = mode_type_flag (info->type, mode);
 
-  if (bitsp == nullptr)
+  if (bitsp == NULL)
     {
       /* Combination mode. */
-      if (STREQ (info->name, "evenp") || STREQ (info->name, "parity"))
+      if (streq (info->name, "evenp") || streq (info->name, "parity"))
         {
           if (reversed)
             mode->c_cflag = (mode->c_cflag & ~PARENB & ~CSIZE) | CS8;
           else
             mode->c_cflag = (mode->c_cflag & ~PARODD & ~CSIZE) | PARENB | CS7;
         }
-      else if (STREQ (info->name, "oddp"))
+      else if (streq (info->name, "oddp"))
         {
           if (reversed)
             mode->c_cflag = (mode->c_cflag & ~PARENB & ~CSIZE) | CS8;
           else
             mode->c_cflag = (mode->c_cflag & ~CSIZE) | CS7 | PARODD | PARENB;
         }
-      else if (STREQ (info->name, "nl"))
+      else if (streq (info->name, "nl"))
         {
           if (reversed)
             {
@@ -1537,21 +1583,21 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
 #endif
             }
         }
-      else if (STREQ (info->name, "ek"))
+      else if (streq (info->name, "ek"))
         {
           mode->c_cc[VERASE] = CERASE;
           mode->c_cc[VKILL] = CKILL;
         }
-      else if (STREQ (info->name, "sane"))
+      else if (streq (info->name, "sane"))
         sane_mode (mode);
-      else if (STREQ (info->name, "cbreak"))
+      else if (streq (info->name, "cbreak"))
         {
           if (reversed)
             mode->c_lflag |= ICANON;
           else
             mode->c_lflag &= ~ICANON;
         }
-      else if (STREQ (info->name, "pass8"))
+      else if (streq (info->name, "pass8"))
         {
           if (reversed)
             {
@@ -1564,7 +1610,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
               mode->c_iflag &= ~ISTRIP;
             }
         }
-      else if (STREQ (info->name, "litout"))
+      else if (streq (info->name, "litout"))
         {
           if (reversed)
             {
@@ -1579,7 +1625,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
               mode->c_oflag &= ~OPOST;
             }
         }
-      else if (STREQ (info->name, "raw") || STREQ (info->name, "cooked"))
+      else if (streq (info->name, "raw") || streq (info->name, "cooked"))
         {
           if ((info->name[0] == 'r' && reversed)
               || (info->name[0] == 'c' && !reversed))
@@ -1610,7 +1656,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
             }
         }
 #ifdef IXANY
-      else if (STREQ (info->name, "decctlq"))
+      else if (streq (info->name, "decctlq"))
         {
           if (reversed)
             mode->c_iflag |= IXANY;
@@ -1619,7 +1665,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
         }
 #endif
 #ifdef TABDLY
-      else if (STREQ (info->name, "tabs"))
+      else if (streq (info->name, "tabs"))
         {
           if (reversed)
             mode->c_oflag = (mode->c_oflag & ~TABDLY) | TAB3;
@@ -1628,7 +1674,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
         }
 #else
 # ifdef OXTABS
-      else if (STREQ (info->name, "tabs"))
+      else if (streq (info->name, "tabs"))
         {
           if (reversed)
             mode->c_oflag = mode->c_oflag | OXTABS;
@@ -1638,8 +1684,8 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
 # endif
 #endif
 #if defined XCASE && defined IUCLC && defined OLCUC
-      else if (STREQ (info->name, "lcase")
-               || STREQ (info->name, "LCASE"))
+      else if (streq (info->name, "lcase")
+               || streq (info->name, "LCASE"))
         {
           if (reversed)
             {
@@ -1655,7 +1701,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
             }
         }
 #endif
-      else if (STREQ (info->name, "crt"))
+      else if (streq (info->name, "crt"))
         mode->c_lflag |= ECHOE
 #ifdef ECHOCTL
           | ECHOCTL
@@ -1664,7 +1710,7 @@ set_mode (struct mode_info const *info, bool reversed, struct termios *mode)
           | ECHOKE
 #endif
           ;
-      else if (STREQ (info->name, "dec"))
+      else if (streq (info->name, "dec"))
         {
           mode->c_cc[VINTR] = 3;	/* ^C */
           mode->c_cc[VERASE] = 127;	/* DEL */
@@ -1696,11 +1742,11 @@ set_control_char (struct control_info const *info, char const *arg,
 {
   unsigned long int value;
 
-  if (STREQ (info->name, "min") || STREQ (info->name, "time"))
+  if (streq (info->name, "min") || streq (info->name, "time"))
     value = integer_arg (arg, TYPE_MAXIMUM (cc_t));
   else if (arg[0] == '\0' || arg[1] == '\0')
     value = to_uchar (arg[0]);
-  else if (STREQ (arg, "^-") || STREQ (arg, "undef"))
+  else if (streq (arg, "^-") || streq (arg, "undef"))
     value = _POSIX_VDISABLE;
   else if (arg[0] == '^' && arg[1] != '\0')	/* Ignore any trailing junk. */
     {
@@ -1715,25 +1761,25 @@ set_control_char (struct control_info const *info, char const *arg,
 }
 
 static void
-set_speed (enum speed_setting type, char const *arg, struct termios *mode)
+set_speed (enum speed_setting type, char const *arg,
+           struct speed_desc const speed, struct termios *mode)
 {
   /* Note cfset[io]speed(), do not check with the device,
      and only check whether the system logic supports the specified speed.
      Therefore we don't report the device name in any errors.  */
 
-  speed_t baud = string_to_baud (arg);
-  affirm (baud != (speed_t) -1);
+  affirm (speed.valid);
 
   if (type == input_speed || type == both_speeds)
     {
-      last_ibaud = baud;
-      if (cfsetispeed (mode, baud))
+      last_ibaud = speed;
+      if (cfsetispeed (mode, speed.baud))
         error (EXIT_FAILURE, 0, _("unsupported ispeed %s"), quoteaf (arg));
     }
   if (type == output_speed || type == both_speeds)
     {
-      last_obaud = baud;
-      if (cfsetospeed (mode, baud))
+      last_obaud = speed;
+      if (cfsetospeed (mode, speed.baud))
         error (EXIT_FAILURE, 0, _("unsupported ospeed %s"), quoteaf (arg));
     }
 }
@@ -1852,8 +1898,8 @@ screen_columns (void)
     /* Use $COLUMNS if it's in [1..INT_MAX].  */
     char *col_string = getenv ("COLUMNS");
     long int n_columns;
-    if (!(col_string != nullptr
-          && xstrtol (col_string, nullptr, 0, &n_columns, "") == LONGINT_OK
+    if (!(col_string != NULL
+          && xstrtol (col_string, NULL, 0, &n_columns, "") == LONGINT_OK
           && 0 < n_columns
           && n_columns <= INT_MAX))
       n_columns = 80;
@@ -1880,7 +1926,7 @@ mode_type_flag (enum mode_type type, struct termios *mode)
       return &mode->c_lflag;
 
     case combination:
-      return nullptr;
+      return NULL;
 
     default:
       unreachable ();
@@ -1910,7 +1956,6 @@ display_settings (enum output_type output_type, struct termios *mode,
 static void
 display_changed (struct termios *mode)
 {
-  int i;
   bool empty_line;
   tcflag_t *bitsp;
   unsigned long mask;
@@ -1924,26 +1969,26 @@ display_changed (struct termios *mode)
   current_col = 0;
 
   empty_line = true;
-  for (i = 0; !STREQ (control_info[i].name, "min"); ++i)
+  for (int i = 0; !streq (control_info[i].name, "min"); ++i)
     {
       if (mode->c_cc[control_info[i].offset] == control_info[i].saneval)
         continue;
 
 #ifdef VFLUSHO
       /* 'flush' is the deprecated equivalent of 'discard'.  */
-      if (STREQ (control_info[i].name, "flush"))
+      if (streq (control_info[i].name, "flush"))
         continue;
 #endif
       /* If swtch is the same as susp, don't print both.  */
 #if VSWTCH == VSUSP
-      if (STREQ (control_info[i].name, "swtch"))
+      if (streq (control_info[i].name, "swtch"))
         continue;
 #endif
       /* If eof uses the same slot as min, only print whichever applies.  */
 #if VEOF == VMIN
       if ((mode->c_lflag & ICANON) == 0
-          && (STREQ (control_info[i].name, "eof")
-              || STREQ (control_info[i].name, "eol")))
+          && (streq (control_info[i].name, "eof")
+              || streq (control_info[i].name, "eol")))
         continue;
 #endif
 
@@ -1962,7 +2007,7 @@ display_changed (struct termios *mode)
   current_col = 0;
 
   empty_line = true;
-  for (i = 0; mode_info[i].name != nullptr; ++i)
+  for (int i = 0; mode_info[i].name != NULL; ++i)
     {
       if (mode_info[i].flags & OMIT)
         continue;
@@ -2001,7 +2046,6 @@ display_changed (struct termios *mode)
 static void
 display_all (struct termios *mode, char const *device_name)
 {
-  int i;
   tcflag_t *bitsp;
   unsigned long mask;
   enum mode_type prev_type = control;
@@ -2016,23 +2060,23 @@ display_all (struct termios *mode, char const *device_name)
   putchar ('\n');
   current_col = 0;
 
-  for (i = 0; ! STREQ (control_info[i].name, "min"); ++i)
+  for (int i = 0; ! streq (control_info[i].name, "min"); ++i)
     {
 #ifdef VFLUSHO
       /* 'flush' is the deprecated equivalent of 'discard'.  */
-      if (STREQ (control_info[i].name, "flush"))
+      if (streq (control_info[i].name, "flush"))
         continue;
 #endif
       /* If swtch is the same as susp, don't print both.  */
 #if VSWTCH == VSUSP
-      if (STREQ (control_info[i].name, "swtch"))
+      if (streq (control_info[i].name, "swtch"))
         continue;
 #endif
       /* If eof uses the same slot as min, only print whichever applies.  */
 #if VEOF == VMIN
       if ((mode->c_lflag & ICANON) == 0
-          && (STREQ (control_info[i].name, "eof")
-              || STREQ (control_info[i].name, "eol")))
+          && (streq (control_info[i].name, "eof")
+              || streq (control_info[i].name, "eol")))
         continue;
 #endif
       wrapf ("%s = %s;", control_info[i].name,
@@ -2048,7 +2092,7 @@ display_all (struct termios *mode, char const *device_name)
     putchar ('\n');
   current_col = 0;
 
-  for (i = 0; mode_info[i].name != nullptr; ++i)
+  for (int i = 0; mode_info[i].name != NULL; ++i)
     {
       if (mode_info[i].flags & OMIT)
         continue;
@@ -2077,13 +2121,14 @@ display_all (struct termios *mode, char const *device_name)
 static void
 check_speed (struct termios *mode)
 {
-  if (last_ibaud != -1 && last_obaud != -1)
+  if (last_ibaud.valid && last_obaud.valid)
     {
-      if (cfgetispeed (mode) != last_ibaud
-          || cfgetospeed (mode) != last_obaud)
+      if (cfgetispeed (mode) != last_ibaud.baud
+          || cfgetospeed (mode) != last_obaud.baud)
         error (EXIT_FAILURE, 0,
                _("asymmetric input (%lu), output (%lu) speeds not supported"),
-               baud_to_value (last_ibaud), baud_to_value (last_obaud));
+               baud_to_value (last_ibaud.baud),
+               baud_to_value (last_obaud.baud));
     }
 }
 
@@ -2111,35 +2156,48 @@ display_recoverable (struct termios *mode)
           (unsigned long int) mode->c_lflag);
   for (size_t i = 0; i < NCCS; ++i)
     printf (":%lx", (unsigned long int) mode->c_cc[i]);
+
+  /* Without CBAUD, speeds are stored separately from c_cflag (e.g.,
+     on BSD).  Otherwise preserve the old format unless BOTHER is used.  */
+  bool separate_speeds = true;
+#ifdef CBAUD
+  separate_speeds = false;
+# ifdef BOTHER
+  separate_speeds = (mode->c_cflag & CBAUD) == BOTHER;
+#  if defined CIBAUD && defined IBSHIFT
+  separate_speeds |= ((mode->c_cflag & CIBAUD) >> IBSHIFT) == BOTHER;
+#  endif
+# endif
+#endif
+  if (separate_speeds)
+    printf (":%lx:%lx", (unsigned long int) cfgetispeed (mode),
+            (unsigned long int) cfgetospeed (mode));
+
   putchar ('\n');
 }
 
-/* NOTE: identical to below, modulo use of tcflag_t */
-static int
-strtoul_tcflag_t (char const *s, int base, char **p, tcflag_t *result,
-                  char delim)
-{
-  unsigned long ul;
-  errno = 0;
-  ul = strtoul (s, p, base);
-  if (errno || **p != delim || *p == s || (tcflag_t) ul != ul)
-    return -1;
-  *result = ul;
-  return 0;
-}
+/* Define a strtoul wrapper that checks the delimiter and result range.  */
+#define STRTOUL_TYPE(TYPE)                                               \
+  static int                                                             \
+  strtoul_##TYPE (char const *s, int base, char **p, TYPE *result,       \
+                  char delim)                                            \
+  {                                                                      \
+    unsigned long ul;                                                    \
+    errno = 0;                                                           \
+    ul = strtoul (s, p, base);                                           \
+    if (errno || **p != delim || *p == s || (TYPE) ul != ul)             \
+      return -1;                                                         \
+    *result = ul;                                                        \
+    return 0;                                                            \
+  }
 
-/* NOTE: identical to above, modulo use of cc_t */
-static int
-strtoul_cc_t (char const *s, int base, char **p, cc_t *result, char delim)
-{
-  unsigned long ul;
-  errno = 0;
-  ul = strtoul (s, p, base);
-  if (errno || **p != delim || *p == s || (cc_t) ul != ul)
-    return -1;
-  *result = ul;
-  return 0;
-}
+STRTOUL_TYPE (tcflag_t)
+STRTOUL_TYPE (cc_t)
+STRTOUL_TYPE (speed_t)
+#undef STRTOUL_TYPE
+
+/* Autogenerated conversion functions to/from speed_t */
+#include "speedlist.h"
 
 /* Parse the output of display_recoverable.
    Return false if any part of it is invalid.  */
@@ -2148,8 +2206,7 @@ recover_mode (char const *arg, struct termios *mode)
 {
   tcflag_t flag[4];
   char const *s = arg;
-  size_t i;
-  for (i = 0; i < 4; i++)
+  for (size_t i = 0; i < 4; i++)
     {
       char *p;
       if (strtoul_tcflag_t (s, 16, &p, flag + i, ':') != 0)
@@ -2161,23 +2218,112 @@ recover_mode (char const *arg, struct termios *mode)
   mode->c_cflag = flag[2];
   mode->c_lflag = flag[3];
 
-  for (i = 0; i < NCCS; ++i)
+  for (size_t i = 0; i < NCCS; ++i)
     {
       char *p;
-      char delim = i < NCCS - 1 ? ':' : '\0';
+      char delim = i < NCCS - 1 || strchr (s, ':') ? ':' : '\0';
       if (strtoul_cc_t (s, 16, &p, mode->c_cc + i, delim) != 0)
         return false;
+      /* Accept the old format, which has no separate speed fields.  */
+      if (! *p)
+        {
+#ifdef CBAUD
+          /* Some systems keep numeric speeds separately even when the
+             control flags encode them.  Ensure those speeds are sync'd
+             after restoring the flags.  */
+# ifdef TERMIOS_SPEED_T_SANE
+          struct speed_desc ospeed = cbaud_to_speed (mode->c_cflag & CBAUD);
+          if (ospeed.valid && cfsetospeed (mode, ospeed.baud) != 0)
+            return false;
+#  if defined CIBAUD && defined IBSHIFT
+          struct speed_desc ispeed =
+            cbaud_to_speed ((mode->c_cflag & CIBAUD) >> IBSHIFT);
+          if (ispeed.valid && cfsetispeed (mode, ispeed.baud) != 0)
+            return false;
+#  endif
+# endif
+          last_ibaud.baud = cfgetispeed (mode);
+          last_obaud.baud = cfgetospeed (mode);
+#endif
+          return true;
+        }
       s = p + 1;
+    }
+
+  speed_t speed[2];
+  for (size_t i = 0; i < 2; i++)
+    {
+      char *p;
+      char delim = i == 0 ? ':' : '\0';
+      if (strtoul_speed_t (s, 16, &p, speed + i, delim) != 0)
+        return false;
+      s = p + (i == 0);
+    }
+
+  /* Set output first, since an input speed of zero can mean to use
+     the output speed.  */
+  if (cfsetospeed (mode, speed[1]) != 0
+      || cfsetispeed (mode, speed[0]) != 0)
+    return false;
+
+  last_ibaud.baud = speed[0] == 0 ? cfgetispeed (mode) : speed[0];
+  last_obaud.baud = speed[1];
+  return true;
+}
+
+/* Return true if MODE1 and MODE2 have equivalent speeds.  */
+static bool
+speed_matches (struct termios const *mode1, struct termios const *mode2)
+{
+  speed_t speed1[2] = { cfgetospeed (mode1), cfgetispeed (mode1) };
+  speed_t speed2[2] = { cfgetospeed (mode2), cfgetispeed (mode2) };
+  if (speed1[1] == 0)
+    speed1[1] = speed1[0];
+  if (speed2[1] == 0)
+    speed2[1] = speed2[0];
+
+  unsigned int bits = 2;  /* Start and stop bits.  */
+  bits += !!(mode1->c_cflag & CSTOPB);  /* Extra stop bit.  */
+  bits += !!(mode1->c_cflag & PARENB);  /* Parity bit.  */
+  /* Data bits.  */
+  switch (mode1->c_cflag & CSIZE)
+    {
+      case CS5: bits += 5; break;
+      case CS6: bits += 6; break;
+      case CS7: bits += 7; break;
+      default: bits += 8; break;
+    }
+
+  for (int i = 0; i < 2; i++)
+    {
+      unsigned long int value1;
+      unsigned long int value2;
+      unsigned long int delta;
+
+      if (speed1[i] == speed2[i])
+        continue;
+
+      value1 = baud_to_value (speed1[i]);
+      value2 = baud_to_value (speed2[i]);
+
+#ifndef TERMIOS_SPEED_T_SANE
+      /* baud_to_value uses ULONG_MAX for an unrecognized encoding.  */
+      if (value1 == ULONG_MAX || value2 == ULONG_MAX)
+        return false;
+#endif
+
+      /* Accept a value that's within a 1/4 bit per character.
+         E.g., for 8N1, within 2.5% of the requested speed.  */
+      delta = value1 < value2 ? value2 - value1 : value1 - value2;
+      if (delta > value1 / (bits * 4))
+        return false;
     }
 
   return true;
 }
 
-/* Autogenerated conversion functions to/from speed_t */
-#include "speedlist.h"
-
 ATTRIBUTE_PURE
-static speed_t
+static struct speed_desc
 string_to_baud (char const *arg)
 {
   char *ep;
@@ -2188,7 +2334,11 @@ string_to_baud (char const *arg)
   while (c_isspace (*arg))
     arg++;
   if (*arg == '-')
-    return (speed_t) -1;
+    goto invalid;
+
+  /* Empty does not mean 0.  */
+  if (! *arg)
+    goto invalid;
 
   value = strtoul (arg, &ep, 10);
 
@@ -2217,39 +2367,41 @@ string_to_baud (char const *arg)
             c = *ep++;
 
           if (c)
-            return (speed_t) -1; /* Garbage after otherwise valid number */
+            goto invalid; /* Garbage after otherwise valid number */
         }
     }
   else if (c)
     {
       /* Not a valid number; check for legacy aliases "exta" and "extb" */
-      if (STREQ (arg, "exta"))
-        return B19200;
-      else if (STREQ (arg, "extb"))
-        return B38400;
+      if (streq (arg, "exta"))
+        return (struct speed_desc) { .baud = B19200, .valid = true };
+      else if (streq (arg, "extb"))
+        return (struct speed_desc) { .baud = B38400, .valid = true };
       else
-        return (speed_t) -1;
+        goto invalid;
     }
 
   return value_to_baud (value);
+
+ invalid:
+  return (struct speed_desc) { .baud = (speed_t) -1, .valid = false };
 }
 
 static void
 sane_mode (struct termios *mode)
 {
-  int i;
   tcflag_t *bitsp;
 
-  for (i = 0; control_info[i].name; ++i)
+  for (int i = 0; control_info[i].name; ++i)
     {
 #if VMIN == VEOF
-      if (STREQ (control_info[i].name, "min"))
+      if (streq (control_info[i].name, "min"))
         break;
 #endif
       mode->c_cc[control_info[i].offset] = control_info[i].saneval;
     }
 
-  for (i = 0; mode_info[i].name != nullptr; ++i)
+  for (int i = 0; mode_info[i].name != NULL; ++i)
     {
       if (mode_info[i].flags & NO_SETATTR)
         continue;

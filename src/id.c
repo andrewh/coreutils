@@ -1,5 +1,5 @@
 /* id -- print real and effective UIDs and GIDs
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ static gid_t rgid, egid;
 
 /* The SELinux context.  Start with a known invalid value so print_full_info
    knows when 'context' has not been set to a meaningful value.  */
-static char *context = nullptr;
+static char *context = NULL;
 
 static void print_user (uid_t uid);
 static void print_full_info (char const *username);
@@ -72,16 +72,16 @@ static void print_stuff (char const *pw_name);
 
 static struct option const longopts[] =
 {
-  {"context", no_argument, nullptr, 'Z'},
-  {"group", no_argument, nullptr, 'g'},
-  {"groups", no_argument, nullptr, 'G'},
-  {"name", no_argument, nullptr, 'n'},
-  {"real", no_argument, nullptr, 'r'},
-  {"user", no_argument, nullptr, 'u'},
-  {"zero", no_argument, nullptr, 'z'},
+  {"context", no_argument, NULL, 'Z'},
+  {"group", no_argument, NULL, 'g'},
+  {"groups", no_argument, NULL, 'G'},
+  {"name", no_argument, NULL, 'n'},
+  {"real", no_argument, NULL, 'r'},
+  {"user", no_argument, NULL, 'u'},
+  {"zero", no_argument, NULL, 'z'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -97,19 +97,41 @@ Print user and group information for each specified USER,\n\
 or (when USER omitted) for the current process.\n\
 \n"),
              stdout);
-      fputs (_("\
-  -a             ignore, for compatibility with other versions\n\
-  -Z, --context  print only the security context of the process\n\
-  -g, --group    print only the effective group ID\n\
-  -G, --groups   print all group IDs\n\
-  -n, --name     print a name instead of a number, for -u,-g,-G\n\
-  -r, --real     print the real ID instead of the effective ID, with -u,-g,-G\n\
-  -u, --user     print only the effective user ID\n\
-  -z, --zero     delimit entries with NUL characters, not whitespace;\n\
-                   not permitted in default format\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -a\n\
+         ignore, for compatibility with other versions\n\
+"));
+      oputs (_("\
+  -Z, --context\n\
+         print only the security context of the process\n\
+"));
+      oputs (_("\
+  -g, --group\n\
+         print only the effective group ID\n\
+"));
+      oputs (_("\
+  -G, --groups\n\
+         print all group IDs\n\
+"));
+      oputs (_("\
+  -n, --name\n\
+         print a name instead of a number, for -u, -g, -G\n\
+"));
+      oputs (_("\
+  -r, --real\n\
+         print the real ID instead of the effective ID, with -u, -g, -G\n\
+"));
+      oputs (_("\
+  -u, --user\n\
+         print only the effective user ID\n\
+"));
+      oputs (_("\
+  -z, --zero\n\
+         delimit entries with NUL characters, not whitespace;\n\
+         not permitted in default format\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 Without any OPTION, print some useful set of identified information.\n\
@@ -134,7 +156,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "agnruzGZ", longopts, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "agnruzGZ", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -143,7 +165,8 @@ main (int argc, char **argv)
           break;
 
         case 'Z':
-          /* politely decline if we're not on a SELinux/SMACK-enabled kernel. */
+          /* politely decline if we're not on a SELinux/SMACK-enabled kernel.
+             Keep require_selinux_ in tests in sync with these messages.  */
 #ifdef HAVE_SMACK
           if (!selinux_enabled && !smack_enabled)
             error (EXIT_FAILURE, 0,
@@ -232,18 +255,18 @@ main (int argc, char **argv)
       /* For each username/userid to get its pw_name field */
       for (; optind < n_ids; optind++)
         {
-          char *pw_name = nullptr;
-          struct passwd *pwd = nullptr;
+          char *pw_name = NULL;
+          struct passwd *pwd = NULL;
           char const *spec = argv[optind];
           /* Disallow an empty spec here as parse_user_spec() doesn't
              give an error for that as it seems it's a valid way to
              specify a noop or "reset special bits" depending on the system.  */
           if (*spec)
             {
-              if (! parse_user_spec (spec, &euid, nullptr, &pw_name, nullptr))
+              if (! parse_user_spec (spec, &euid, NULL, &pw_name, NULL))
                 pwd = pw_name ? getpwnam (pw_name) : getpwuid (euid);
             }
-          if (pwd == nullptr)
+          if (pwd == NULL)
             {
               error (0, errno, _("%s: no such user"), quote (spec));
               ok &= false;
@@ -255,6 +278,8 @@ main (int argc, char **argv)
               ruid = euid = pwd->pw_uid;
               rgid = egid = pwd->pw_gid;
               print_stuff (pw_name);
+              if (ferror (stdout))
+                write_error ();
             }
           free (pw_name);
         }
@@ -297,7 +322,7 @@ main (int argc, char **argv)
           if (rgid == NO_GID && errno)
             error (EXIT_FAILURE, errno, _("cannot get real GID"));
         }
-        print_stuff (nullptr);
+        print_stuff (NULL);
     }
 
   return ok ? EXIT_SUCCESS : EXIT_FAILURE;
@@ -308,12 +333,12 @@ main (int argc, char **argv)
 static void
 print_user (uid_t uid)
 {
-  struct passwd *pwd = nullptr;
+  struct passwd *pwd = NULL;
 
   if (use_name)
     {
       pwd = getpwuid (uid);
-      if (pwd == nullptr)
+      if (pwd == NULL)
         {
           error (0, 0, _("cannot find name for user ID %ju"), (uintmax_t) uid);
           ok &= false;

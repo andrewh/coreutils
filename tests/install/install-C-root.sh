@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure "install -C" compares owner and group.
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,10 +22,10 @@ require_root_
 skip_if_setgid_
 skip_if_nondefault_group_
 
-u1=1
-u2=2
-g1=1
-g2=2
+u1=+1
+u2=+2
+g1=+1
+g2=+2
 
 
 echo test > a || framework_failure_

@@ -1,5 +1,5 @@
 /* comm -- compare two sorted files line by line.
-   Copyright (C) 1986-2025 Free Software Foundation, Inc.
+   Copyright (C) 1986-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -40,13 +40,13 @@
 static bool hard_LC_COLLATE;
 
 /* If true, print lines that are found only in file 1. */
-static bool only_file_1;
+static bool only_file_1 = true;
 
 /* If true, print lines that are found only in file 2. */
-static bool only_file_2;
+static bool only_file_2 = true;
 
 /* If true, print lines that are found in both files. */
-static bool both;
+static bool both = true;
 
 /* If nonzero, we have seen at least one unpairable line. */
 static bool seen_unpairable;
@@ -85,14 +85,14 @@ enum
 
 static struct option const long_options[] =
 {
-  {"check-order", no_argument, nullptr, CHECK_ORDER_OPTION},
-  {"nocheck-order", no_argument, nullptr, NOCHECK_ORDER_OPTION},
-  {"output-delimiter", required_argument, nullptr, OUTPUT_DELIMITER_OPTION},
-  {"total", no_argument, nullptr, TOTAL_OPTION},
-  {"zero-terminated", no_argument, nullptr, 'z'},
+  {"check-order", no_argument, NULL, CHECK_ORDER_OPTION},
+  {"nocheck-order", no_argument, NULL, NOCHECK_ORDER_OPTION},
+  {"output-delimiter", required_argument, NULL, OUTPUT_DELIMITER_OPTION},
+  {"total", no_argument, NULL, TOTAL_OPTION},
+  {"zero-terminated", no_argument, NULL, 'z'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 
@@ -112,7 +112,7 @@ Compare sorted files FILE1 and FILE2 line by line.\n\
 "), stdout);
       fputs (_("\
 \n\
-When FILE1 or FILE2 (not both) is -, read standard input.\n\
+When FILE1 or FILE2 is -, read standard input.\n\
 "), stdout);
       fputs (_("\
 \n\
@@ -120,29 +120,38 @@ With no options, produce three-column output.  Column one contains\n\
 lines unique to FILE1, column two contains lines unique to FILE2,\n\
 and column three contains lines common to both files.\n\
 "), stdout);
-      fputs (_("\
-\n\
-  -1                      suppress column 1 (lines unique to FILE1)\n\
-  -2                      suppress column 2 (lines unique to FILE2)\n\
-  -3                      suppress column 3 (lines that appear in both files)\n\
-"), stdout);
-      fputs (_("\
-\n\
-      --check-order       check that the input is correctly sorted, even\n\
-                            if all input lines are pairable\n\
-      --nocheck-order     do not check that the input is correctly sorted\n\
-"), stdout);
-      fputs (_("\
-      --output-delimiter=STR  separate columns with STR\n\
-"), stdout);
-      fputs (_("\
-      --total             output a summary\n\
-"), stdout);
-      fputs (_("\
-  -z, --zero-terminated   line delimiter is NUL, not newline\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -1     suppress column 1 (lines unique to FILE1)\n\
+"));
+      oputs (_("\
+  -2     suppress column 2 (lines unique to FILE2)\n\
+"));
+      oputs (_("\
+  -3     suppress column 3 (lines that appear in both files)\n\
+"));
+      oputs (_("\
+      --check-order\n\
+         check that the input is correctly sorted,\n\
+         even if all input lines are pairable\n\
+"));
+      oputs (_("\
+      --nocheck-order\n\
+         do not check that the input is correctly sorted\n\
+"));
+      oputs (_("\
+      --output-delimiter=STR\n\
+         separate columns with STR\n\
+"));
+      oputs (_("\
+      --total\n\
+         output a summary\n\
+"));
+      oputs (_("\
+  -z, --zero-terminated\n\
+         line delimiter is NUL, not newline\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 Comparisons honor the rules specified by 'LC_COLLATE'.\n\
@@ -272,12 +281,10 @@ compare_files (char **infiles)
   /* Counters for the summary.  */
   uintmax_t total[] = {0, 0, 0};
 
-  int i, j;
-
   /* Initialize the storage. */
-  for (i = 0; i < 2; i++)
+  for (int i = 0; i < 2; i++)
     {
-      for (j = 0; j < 4; j++)
+      for (int j = 0; j < 4; j++)
         {
           initbuffer (&lba[i][j]);
           all_line[i][j] = &lba[i][j];
@@ -285,7 +292,7 @@ compare_files (char **infiles)
       alt[i][0] = 0;
       alt[i][1] = 0;
       alt[i][2] = 0;
-      streams[i] = (STREQ (infiles[i], "-") ? stdin : fopen (infiles[i], "r"));
+      streams[i] = (streq (infiles[i], "-") ? stdin : fopen (infiles[i], "r"));
       if (!streams[i])
         error (EXIT_FAILURE, errno, "%s", quotef (infiles[i]));
 
@@ -353,7 +360,7 @@ compare_files (char **infiles)
       if (order <= 0)
         fill_up[0] = true;
 
-      for (i = 0; i < 2; i++)
+      for (int i = 0; i < 2; i++)
         if (fill_up[i])
           {
             /* Rotate the buffers for this file. */
@@ -381,30 +388,29 @@ compare_files (char **infiles)
           }
     }
 
-  for (i = 0; i < 2; i++)
+  /* Avoid closing standard input twice when invoking 'comm - -'.  */
+  const int n_streams = 2 - (streams[0] == streams[1]);
+  for (int i = 0; i < n_streams; i++)
     if (fclose (streams[i]) != 0)
       error (EXIT_FAILURE, errno, "%s", quotef (infiles[i]));
 
   if (total_option)
     {
       /* Print the summary, minding the column and line delimiters.  */
-      char buf1[INT_BUFSIZE_BOUND (uintmax_t)];
-      char buf2[INT_BUFSIZE_BOUND (uintmax_t)];
-      char buf3[INT_BUFSIZE_BOUND (uintmax_t)];
       if (col_sep_len == 1)
         { /* Separate to handle NUL char.  */
-          printf ("%s%c%s%c%s%c%s%c",
-                  umaxtostr (total[0], buf1), *col_sep,
-                  umaxtostr (total[1], buf2), *col_sep,
-                  umaxtostr (total[2], buf3), *col_sep,
+          printf ("%ju%c%ju%c%ju%c%s%c",
+                  total[0], *col_sep,
+                  total[1], *col_sep,
+                  total[2], *col_sep,
                   _("total"), delim);
         }
       else
         {
-          printf ("%s%s%s%s%s%s%s%c",
-                  umaxtostr (total[0], buf1), col_sep,
-                  umaxtostr (total[1], buf2), col_sep,
-                  umaxtostr (total[2], buf3), col_sep,
+          printf ("%ju%s%ju%s%ju%s%s%c",
+                  total[0], col_sep,
+                  total[1], col_sep,
+                  total[2], col_sep,
                   _("total"), delim);
         }
     }
@@ -430,16 +436,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  only_file_1 = true;
-  only_file_2 = true;
-  both = true;
-
-  seen_unpairable = false;
-  issued_disorder_warning[0] = issued_disorder_warning[1] = false;
-  check_input_order = CHECK_ORDER_DEFAULT;
-  total_option = false;
-
-  while ((c = getopt_long (argc, argv, "123z", long_options, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "123z", long_options, NULL)) != -1)
     switch (c)
       {
       case '1':
@@ -467,7 +464,7 @@ main (int argc, char **argv)
         break;
 
       case OUTPUT_DELIMITER_OPTION:
-        if (col_sep_len && !STREQ (col_sep, optarg))
+        if (col_sep_len && !streq (col_sep, optarg))
           error (EXIT_FAILURE, 0, _("multiple output delimiters specified"));
         col_sep = optarg;
         col_sep_len = *optarg ? strlen (optarg) : 1;

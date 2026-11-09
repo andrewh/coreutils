@@ -1,7 +1,7 @@
 # Make coreutils man pages.				-*-Makefile-*-
 # This is included by the top-level Makefile.am.
 
-# Copyright (C) 2002-2025 Free Software Foundation, Inc.
+# Copyright (C) 2002-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,7 +27,8 @@ if HAVE_PERL
 if BOLD_MAN_REFS
 help2man_OPTS=--bold-refs
 endif
-run_help2man = $(PERL) -- $(srcdir)/man/help2man --loose-indent $(help2man_OPTS)
+run_help2man = env IN_HELP2MAN=1 $(PERL) -- \
+	       $(srcdir)/man/help2man --loose-indent $(help2man_OPTS)
 else
 run_help2man = $(SHELL) $(srcdir)/man/dummy-man
 endif
@@ -61,7 +62,11 @@ mandeps += $(top_srcdir)/src/system.h
 $(ALL_MANS): $(mandeps)
 
 if SINGLE_BINARY
+if SINGLE_BINARY_HARD
+mandeps += src/coreutils_hardlinks
+else
 mandeps += src/coreutils$(EXEEXT)
+endif
 else
 # Most prog.1 man pages depend on src/prog.  List the exceptions:
 man/install.1:   src/ginstall$(EXEEXT)

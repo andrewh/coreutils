@@ -1,6 +1,6 @@
 @c GNU Version-sort ordering documentation
 
-@c Copyright (C) 2019--2025 Free Software Foundation, Inc.
+@c Copyright (C) 2019--2026 Free Software Foundation, Inc.
 
 @c Permission is granted to copy, distribute and/or modify this document
 @c under the terms of the GNU Free Documentation License, Version 1.3 or
@@ -858,7 +858,7 @@ NodeJS's @uref{https://www.npmjs.com/package/natural-sort,natural-sort package}.
 
 @item
 In zsh, the
-@uref{http://zsh.sourceforge.net/Doc/Release/Expansion.html#Glob-Qualifiers,
+@uref{https://zsh.sourceforge.net/Doc/Release/Expansion.html#Glob-Qualifiers,
 glob modifier} @samp{*(n)} will expand to files in natural sort order.
 
 @item

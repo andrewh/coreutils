@@ -2,7 +2,7 @@
 # Exercise sort's --files0-from option.
 # FIXME: keep this file in sync with tests/du/files0-from.
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -42,8 +42,8 @@ my @Tests =
 
    # input file name of '-'
    ['minus-in-stdin', '--files0-from=-', '<', {IN=>{f=>'-'}}, {EXIT=>2},
-    {ERR => "$prog: when reading file names from stdin, no file name of"
-     . " '-' allowed\n"}],
+    {ERR => "$prog: when reading file names from standard input, "
+     . "no file name of '-' allowed\n"}],
 
    # empty input, regular file
    ['empty', '--files0-from=@AUX@', {AUX=>''}, {EXIT=>2},

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "dirname".
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -50,9 +50,25 @@ my @Tests =
      ['l', qw(///a//b/),   {OUT => '///a'}],
      ['m', qw(''),         {OUT => '.'}],
      ['n', qw(a/b c/d),    {OUT => "a\nc"}],
+
+     # QUOTING_STYLE does not affect redirected output.
+     ['q-lit', q{'q name/f'}, {ENV => 'QUOTING_STYLE=literal'},
+      {OUT => 'q name'}],
+     ['q-shell', q{'q name/f'}, {ENV => 'QUOTING_STYLE=shell-always'},
+      {OUT => 'q name'}],
+     ['q-invalid', q{'q name/f'}, {ENV => 'QUOTING_STYLE=invalid'},
+      {OUT => 'q name'}],
+
+     # Exercise -z option.
+     ['z0', qw(-z a/b),       {OUT => "a\0"}],
+     ['z1', qw(--zero a/b),   {OUT => "a\0"}],
+     ['z2', qw(-z a/b b/a),    {OUT => "a\0b\0"}],
+     ['z-quote', q{-z 'q name/f'}, {ENV => 'QUOTING_STYLE=invalid'},
+      {OUT => "q name\0"}],
     );
 
 # Append a newline to end of each expected 'OUT' string.
+# Skip -z tests, i.e., those whose 'OUT' string has a trailing '\0'.
 my $t;
 foreach $t (@Tests)
   {
@@ -61,7 +77,8 @@ foreach $t (@Tests)
     foreach $e (@$t)
       {
         $e->{OUT} = "$e->{OUT}\n"
-          if ref $e eq 'HASH' and exists $e->{OUT};
+          if ref $e eq 'HASH' and exists $e->{OUT}
+            and not $e->{OUT} =~ /\0$/;
       }
   }
 

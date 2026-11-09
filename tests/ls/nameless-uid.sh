@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that ls -l works on files with nameless uid and/or gid
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ if test x$nameless_uid = x; then
 fi
 
 touch f || framework_failure_
-chown $nameless_uid f || framework_failure_
+chown +$nameless_uid f || framework_failure_
 
 
 set -- $(ls -o f) || fail=1

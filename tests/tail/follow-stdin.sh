@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test tail -f -
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ check_tail_output()
 }
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 # Speedup the non inotify case
 fastpoll='-s.1 --max-unchanged-stats=1'
@@ -59,7 +59,6 @@ done
 returns_ 1 timeout 10 tail -f - <&- 2>errt || fail=1
 cat <<\EOF >exp || framework_failure_
 tail: cannot fstat 'standard input'
-tail: error reading 'standard input'
 tail: no files remaining
 EOF
 sed 's/\(tail:.*\):.*/\1/' errt > err || framework_failure_

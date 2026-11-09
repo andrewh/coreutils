@@ -1,5 +1,5 @@
 # Customize maint.mk                           -*- makefile -*-
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,6 +16,9 @@
 
 # Used in maint.mk's web-manual rule
 manual_title = Core GNU utilities
+
+# Don't create node redirection files for each anchor
+gendocs_options_ = --common --no-node-files
 
 # Use the direct link.  This is guaranteed to work immediately, while
 # it can take a while for the faster mirror links to become usable.
@@ -48,7 +51,16 @@ export VERBOSE = yes
 # 4914152 9e
 export XZ_OPT = -8e
 
-old_NEWS_hash = 0e74b03eaf11d9d281aaa0e7cc544bb4
+# -T0 uses all CPUs,
+# -18 output is only 2% larger but compresses twice as fast as -19
+# Tested with:
+#   for t in '' '-T0'; do for l in $(seq 15 19); do
+#     echo == $t -$l ==; env time -f 'elapsed=%E CPU=%Us Mem=%MKB' \
+#      zstd -c $t -$l < coreutils-9.12.tar | wc -c
+#   done; done
+export ZSTD_OPT = -T0 -18
+
+old_NEWS_hash = 078ebe66312fe06ceac192cd5a8423ec
 
 # Add an exemption for sc_makefile_at_at_check.
 _makefile_at_at_check_exceptions = \
@@ -68,7 +80,8 @@ sc_dd_O_FLAGS:
 	@rm -f $@.1 $@.2
 	@{ echo O_FULLBLOCK; echo O_NOCACHE;				\
 	  perl -nle '/^ +\| (O_\w*)$$/ and print $$1' $(dd); } | sort > $@.1
-	@{ echo O_NOFOLLOW; perl -nle '/{"[a-z]+",\s*(O_\w+)},/ and print $$1' \
+	@{ echo O_NOFOLLOW; echo O_EXCL;				\
+	   perl -nle '/{"[a-z]+",\s*(O_\w+)},/ and print $$1'		\
 	  $(dd); } | sort > $@.2
 	@diff -u $@.1 $@.2; diff=$$?;					\
 	rm -f $@.1 $@.2;						\
@@ -304,6 +317,20 @@ sc_prohibit-gl-attributes:
 	halt='Use _GL... attribute macros'			\
 	  $(_sc_search_regexp)
 
+# Ensure that <attributes.h> macros are used in .c files.
+sc_prohibit-_gl-attributes:
+	@prohibit='_GL_ATTRIBUTE'				\
+	in_vc_files='\.c$$'					\
+	halt='Use ATTRIBUTE_... instead of _GL_ATTRIBUTE_...'	\
+	  $(_sc_search_regexp)
+
+# Prefer the STRUCT_UTMP typedef over struct gl_utmp.
+sc_prohibit-struct-gl_utmp:
+	@prohibit='struct gl_utmp'				\
+	in_vc_files='\.[ch]$$'					\
+	halt='Use STRUCT_UTMP, not struct gl_utmp'		\
+	  $(_sc_search_regexp)
+
 # Prefer the const declaration form, with const following the type
 sc_prohibit-const-char:
 	@prohibit='const char \*'				\
@@ -336,6 +363,14 @@ sc_long_lines:
 	  sed -e "s|^|$$file:|" -e '$(FILTER_LONG_LINES)';		\
 	done | grep . && { msg="$$halt" $(_sc_say_and_exit) } || :
 
+sc_standard_outputs: $(ALL_MANS)
+	@grep -E 'std(in|out|err)' man/*.1 doc/*.texi			 \
+	  && { echo 1>&2 '$@: use "standard ....." in user docs'; exit 1; } || :
+	@grep -E '[Ss]tandard (in|out|err)([^op]|$$)' man/*.1 doc/*.texi \
+	  && { echo 1>&2 '$@: use "standard ..put" in user docs'; exit 1; } || :
+	@grep -E '_\("[^"]*std(in|out|err)' src/*.c \
+	  && { echo 1>&2 '$@: use "standard ..put" in messages'; exit 1; } || :
+
 # Option descriptions should not start with a capital letter.
 # One could grep source directly as follows:
 # grep -E " {2,6}-.*[^.]  [A-Z][a-z]" $$($(VC_LIST_EXCEPT) | grep '\.c$$')
@@ -348,6 +383,11 @@ sc_option_desc_uppercase: $(ALL_MANS)
 sc_texi_long_option_escaped: doc/coreutils.info
 	@grep ' –[^ ]' '$<'						\
 	  && { echo 1>&2 '$@: found unquoted --long-option'; exit 1; } || :
+
+# pdf (and dvi) generation requires explicit empty args (trailing comma)
+sc_texi_ensure_empty_option_args:
+	@grep '^@optItem[^,]*,[^,]*$$' doc/*.texi && { echo 1>&2 \
+	  '$@: Use explicit empty argument to @optItem[x]'; exit 1; } || :
 
 # Ensure all man/*.[1x] files are present.
 sc_man_file_correlation: check-x-vs-1 check-programs-vs-x
@@ -493,12 +533,6 @@ sc_prohibit_exit_write_error:
 	halt='Use write_error() instead' \
 	  $(_sc_search_regexp)
 
-sc_prohibit_NULL:
-	@prohibit='$(begword)NULL$(endword)'				\
-	in_vc_files='\.[ch]$$'						\
-	halt='use nullptr instead'					\
-	  $(_sc_search_regexp)
-
 sc_prohibit_bare_set:
 	@prohibit='^ *set [`$$]'					\
 	in_vc_files='\.sh$$'						\
@@ -578,6 +612,19 @@ sc_require_stdlib_safer:
 	else :;								\
 	fi
 
+# Ensure that "unistd--.h" is used where appropriate.
+sc_require_unistd_safer:
+	@if $(VC_LIST_EXCEPT) | grep -l '\.[ch]$$' > /dev/null; then	\
+	  files=$$(grep -El '$(begword)(pipe2?|dup[23]?) ?\('		\
+		   $$($(VC_LIST_EXCEPT)					\
+	      | grep '\.[ch]$$'));					\
+	  test -n "$$files" && grep -LE 'include "unistd--.h"' $$files	\
+	      | grep . &&						\
+	  { echo '$(ME): the above files should use "unistd--.h"'	\
+		1>&2; exit 1; } || :;					\
+	else :;								\
+	fi
+
 sc_prohibit_perl_hash_quotes:
 	@prohibit="\{'[A-Z_]+' *[=}]"					\
 	halt="in Perl code, write \$$hash{KEY}, not \$$hash{'K''EY'}"	\
@@ -609,6 +656,12 @@ sc_env_test_dependencies:
 		|| echo $$test should call: print_ver_ $$prog; \
 	    done | grep . && exit 1 || :
 
+# Enforce using our printf if using \u or \x
+sc_env_printf:
+	@cd $(top_srcdir) && GIT_PAGER= git grep 'printf.*[^\\]\\[ux]' tests \
+	  | grep -v -- '--printf' | grep -v 'env printf' \
+	  && { echo 'use "env printf" with \x or \u'; exit 1; } || :
+
 # Use framework_failure_, not the old name without the trailing underscore.
 sc_prohibit_framework_failure:
 	@prohibit='$(begword)framework_''failure$(endword)'		\
@@ -623,6 +676,7 @@ sc_prohibit_test_backticks:
 
 # Ensure that compare is used to check empty files
 # so that the unexpected contents are displayed
+# Use `returns_ 1 test -s ... || fail=1` to avoid this check.
 sc_prohibit_test_empty:
 	@prohibit='test -s.*&&' in_vc_files='^tests/'			\
 	halt='use `compare /dev/null ...`, not `test -s ...` in tests/'	\
@@ -752,6 +806,12 @@ sc_prohibit_strncmp:
 	halt='use STREQ_LEN or STRPREFIX instead of str''ncmp'		\
 	  $(_sc_search_regexp)
 
+# Prefer memeq() to memcmp() where appropriate
+sc_prohibit_memcmp:
+	@prohibit='^[^#].*memcmp *\(.*= 0'				\
+	halt='use memeq() instead of memcmp() =='			\
+	  $(_sc_search_regexp)
+
 # Enforce recommended preprocessor indentation style.
 sc_preprocessor_indentation:
 	@if cppi --version >/dev/null 2>&1; then			\
@@ -848,9 +908,22 @@ sc_prohibit-form-feed:
 	halt='Form Feed (^L) detected' \
 	  $(_sc_search_regexp)
 
+# debbugs.gnu.org/cgi/bugreport.cgi?bug=... ->   bugs.gnu.org/...
+# bugzilla.redhat.com/show_bug.cgi?id=... ->     bugzilla.redhat.com/...
+# sourceware.org/bugzilla/show_bug.cgi?id=... -> sourceware.org/PR...
+# gcc.gnu.org/bugzilla/show_bug.cgi?id=... ->    gcc.gnu.org/PR...
+sc_prohibit-long-form-bug-urls:
+	@prohibit='http.*(bugreport|show_bug)\.cgi' \
+	halt='use short form bug url' \
+	  $(_sc_search_regexp)
+
 # Override the default Cc: used in generating an announcement.
 announcement_Cc_ = $(translation_project_), \
   coreutils@gnu.org, coreutils-announce@gnu.org
+
+# Write cksum supported checksums into the announcement.
+# I.e., base64 to reduce space, and possibly tagged to ease usage.
+announce_gen_args = --cksum-checksums
 
 -include $(srcdir)/dist-check.mk
 
@@ -861,9 +934,9 @@ update-copyright-env = \
 
 # List syntax-check exemptions.
 exclude_file_name_regexp--sc_space_tab = \
-  ^(tests/pr/|tests/misc/nl\.sh$$|gl/.*\.diff$$|man/help2man$$)
+  ^(tests/pr/|tests/nl/nl\.sh$$|gl/.*\.diff$$|man/help2man$$)
 exclude_file_name_regexp--sc_bindtextdomain = \
-  ^(gl/.*|lib/euidaccess-stat|src/make-prime-list|src/cksum)\.c$$
+  ^(gl/.*|lib/euidaccess-stat|src/make-prime-list|src/cksum_crc)\.c$$
 exclude_file_name_regexp--sc_trailing_blank = \
   ^(tests/pr/|gl/.*\.diff$$|man/help2man)
 _x_system_h := (system|copy|chown-core|find-mount-point)\.h
@@ -871,8 +944,9 @@ _x_system_c := (libstdbuf|make-prime-list)\.c
 exclude_file_name_regexp--sc_system_h_headers = \
   ^src/($(_x_system_h)|$(_x_system_c))$$
 
-_src := (false|lbracket|chown-(chgrp|chown)
-_src := $(_src)|ls-(dir|ls|vdir)|make-prime-list|tac-pipe|uname-(arch|uname))
+_src := (false|chown-(chgrp|chown)
+_src := $(_src)|ls-(dir|ls|vdir)|make-prime-list|tac-pipe|test-(lbracket|test)
+_src := $(_src)|true-(false|true)|uname-(arch|uname))
 _gl_src = (xdecto.max|cl-strtold)
 exclude_file_name_regexp--sc_require_config_h_first = \
   (^lib/buffer-lcm\.c|gl/lib/$(_gl_src)\.c|src/$(_src)\.c)$$
@@ -891,7 +965,7 @@ exclude_file_name_regexp--sc_prohibit_always_true_header_tests = \
   ^m4/stat-prog\.m4$$
 exclude_file_name_regexp--sc_prohibit_fail_0 = \
   (^.*/git-hooks/commit-msg|^tests/init\.sh|Makefile\.am|\.mk|.*\.texi)$$
-exclude_file_name_regexp--sc_prohibit_test_minus_ao = doc/.*\.texi$$
+exclude_file_name_regexp--sc_prohibit_test_minus_ao = NEWS|doc/.*\.texi$$
 exclude_file_name_regexp--sc_prohibit_atoi_atof = ^lib/euidaccess-stat\.c$$
 
 # longlong.h is maintained elsewhere.
@@ -899,14 +973,14 @@ _ll = ^src/longlong\.h$$
 exclude_file_name_regexp--sc_useless_cpp_parens = $(_ll)
 exclude_file_name_regexp--sc_space_before_open_paren = $(_ll)
 
-tbi_1 = ^tests/pr/|(\.mk|^man/help2man)$$
+tbi_1 = ^tests/pr/|(\.mk|^gl/.*\.diff|^man/help2man)$$
 tbi_2 = ^scripts/git-hooks/(pre-commit|pre-applypatch|applypatch-msg)$$
 tbi_3 = (GNU)?[Mm]akefile(\.am)?$$|$(_ll)
 exclude_file_name_regexp--sc_prohibit_tab_based_indentation = \
   $(tbi_1)|$(tbi_2)|$(tbi_3)
 
 exclude_file_name_regexp--sc_preprocessor_indentation = \
-  ^(gl/lib/rand-isaac\.[ch]|gl/tests/test-rand-isaac\.c)$$|$(_ll)
+  ^(gl/lib/(rand-isaac|mbbuf|utf8)\.[ch]|gl/tests/test-rand-isaac\.c)$$|$(_ll)
 exclude_file_name_regexp--sc_prohibit_stat_st_blocks = \
   ^(src/system\.h|tests/du/2g\.sh)$$
 
@@ -914,8 +988,9 @@ exclude_file_name_regexp--sc_prohibit_continued_string_alpha_in_column_1 = \
   ^src/(system\.h|od\.c|printf\.c|getlimits\.c)$$
 
 _cksum = ^tests/cksum/cksum-base64\.pl$$
+_tb_misc = misc/(exec-bad-unicode|stdbuf|responsive)
 exclude_file_name_regexp--sc_prohibit_test_backticks = \
-  ^tests/(local\.mk|(init|misc/stdbuf|factor/create-test)\.sh)$$|$(_cksum)
+  ^tests/(local\.mk|(init|$(_tb_misc)|factor/create-test)\.sh)$$|$(_cksum)
 
 # Exempt test.c, since it's nominally shared, and relatively static.
 exclude_file_name_regexp--sc_prohibit_operator_at_end_of_line = \
@@ -963,7 +1038,8 @@ _gl_TS_dir = .
 _gl_TS_obj_files = src/*.$(OBJEXT)
 # Settings for running codespell.
 csiwl_1 = debbugs,clen,te,bu,shs,linke,fo,souch,inout,outin
-csiwl_2 = kno,ois,afile,whats,hda,indx,ot,nam
+csiwl_2 = kno,ois,afile,whats,hda,indx,ot,nam,ist
 codespell_ignore_words_list = $(csiwl_1),$(csiwl_2)
 exclude_file_name_regexp--sc_codespell = \
   ^(THANKS\.in|tests/pr/.*(F|tn?|l(o|m|i)|bl))$$
+exclude_file_name_regexp--sc_GPL_version = ^(gl/lib/(mbbuf|utf8)\.[hc])$$

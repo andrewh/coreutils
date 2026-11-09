@@ -1,7 +1,7 @@
 #!/bin/sh
 # Verify behavior of env.
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,13 +21,13 @@
 print_ver_ env pwd nice
 
 # A simple shebang program to call "echo" from symlinks like "./-u" or "./--".
-echo "#!$abs_top_builddir/src/echo simple_echo" > simple_echo \
+echo '#!'"$(cmd_exe echo)"' foo' > show_args \
   || framework_failure_
-chmod a+x simple_echo || framework_failure_
+chmod a+x show_args || framework_failure_
 
 # Verify we can run the shebang which is not the case if
 # there are spaces in $abs_top_builddir.
-./simple_echo || skip_ "Error running simple_echo script"
+./show_args || skip_ "Error running show_args script"
 
 # Verify clearing the environment
 a=1
@@ -90,6 +90,17 @@ ENV_TEST1=b
 EOF
 compare exp out || fail=1
 
+# env shouldn't care what encoding name or value is
+printf 'NON_UTF8_TEST=\240\n' > exp || framework_failure_
+env $(printf 'NON_UTF8_TEST=\240') env > all || fail=1
+grep '^NON_UTF8_TEST' all | LC_ALL=C sort > out || framework_failure_
+compare exp out || fail=1
+
+printf 'NON_UTF8_TEST\240=1\n' > exp || framework_failure_
+env $(printf 'NON_UTF8_TEST\240=1') env > all || fail=1
+grep "^NON_UTF8_TEST" all | LC_ALL=C sort > out || framework_failure_
+compare exp out || fail=1
+
 # PATH modifications affect exec.
 mkdir unlikely_name || framework_failure_
 cat <<EOF > unlikely_name/also_unlikely || framework_failure_
@@ -109,9 +120,9 @@ export PATH
 # On some systems, execve("-i") invokes a shebang script ./-i on PATH as
 # '/bin/sh -i', rather than '/bin/sh -- -i', which doesn't do what we want.
 # Avoid the issue by using a shebang to 'echo' passing a second parameter
-# before the '-i'. See the definition of simple_echo before.
+# before the '-i'. See the definition of show_args before.
 # Test -u, rather than -i, to minimize PATH problems.
-ln -s "simple_echo" ./-u || framework_failure_
+ln -s "show_args" ./-u || framework_failure_
 case $(env -u echo echo good) in
   good) ;;
   *) fail=1 ;;
@@ -127,7 +138,7 @@ esac
 
 # After options have ended, the first argument not containing = is a program.
 returns_ 127 env a=b -- true || fail=1
-ln -s "simple_echo" ./-- || framework_failure_
+ln -s "show_args" ./-- || framework_failure_
 case $(env a=b -- true || echo fail) in
   *true) ;;
   *) fail=1 ;;
@@ -163,14 +174,65 @@ exp=$(cd empty && env pwd) || framework_failure_
 got=$(env --chdir=empty pwd) || fail=1
 test "$exp" = "$got" || fail=1
 
+# A leading '=' in a value attached to a short option is part of the value.
+mkdir -p =/d || framework_failure_
+exp=$(cd =/d && env pwd) || framework_failure_
+got=$(env -C=/d pwd) || fail=1
+test "$exp" = "$got" || fail=1
+got=$(env -vC=/d pwd 2>/dev/null) || fail=1
+test "$exp" = "$got" || fail=1
+got=$(env -S'-C=/d pwd') || fail=1
+test "$exp" = "$got" || fail=1
+exp=$(cd = && env pwd) || framework_failure_
+got=$(env -C= pwd) || fail=1
+test "$exp" = "$got" || fail=1
+test "$(env -a=name sh -c 'echo "$0"')" = '=name' || fail=1
+returns_ 125 env -u=FOO true || fail=1
+returns_ 125 env -vu=FOO true 2>/dev/null || fail=1
+
 # Verify argv0 overriding
+cat <<EOF > truetrue || framework_failure_
+#!$SHELL
+EOF
+chmod +x truetrue || framework_failure_
 for arg in 'argv0' ''; do
-env -v -a short --argv0=$arg true 2>err || fail=1
+env -v -a short --argv0=$arg ./truetrue 2>err || fail=1
 cat <<EOF >err_exp || framework_failure_
 argv0:     '$arg'
-executing: true
+executing: './truetrue'
    arg[0]= '$arg'
 EOF
+compare err_exp err || fail=1
+done
+
+# --argv0 requires a command.
+returns_ 125 env -a foo > out 2> err || fail=1
+compare /dev/null out || fail=1
+returns_ 125 env --argv0=foo > out 2> err || fail=1
+compare /dev/null out || fail=1
+
+# QUOTING_STYLE does not affect redirected output.
+# --quoting-style does affect redirected output.
+cat <<\EOF >exp-noargs-literal || framework_failure_
+a b=c d
+EOF
+cat <<\EOF >exp-noargs-shell || framework_failure_
+'a b'='c d'
+EOF
+tr "'" '"' <exp-noargs-shell >exp-noargs-c || framework_failure_
+for qs in '' literal shell c; do
+  if test "$qs"; then
+    qs_opt="--quoting-style=$qs"
+  else
+    qs_opt=''; qs='literal'
+  fi
+  env -i PATH="$PATH" QUOTING_STYLE=c 'a b'='c d' \
+    env $qs_opt >out-t 2>err || fail=1
+  grep -vE '^["'"'"']?'\
+'(__CF_USER_TEXT_ENCODING|QUOTING_STYLE|(LD_ORIGIN_)?PATH)["'"'"']?=' \
+    out-t >out || framework_failure_
+  compare exp-noargs-$qs out || fail=1
+  compare /dev/null err || fail=1
 done
 
 Exit $fail

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test 'sort -u'.
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ cat > exp <<\EOF
 EOF
 
 for LOC in C "$LOCALE_FR" "$LOCALE_FR_UTF8"; do
-  test -z "$LOC" && continue
+  { test -z "$LOC" || test "$LOC" = none; } && continue
 
   LC_ALL=$LOC sort -u in > out || { fail=1; break; }
   compare exp out || { fail=1; break; }

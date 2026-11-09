@@ -1,5 +1,5 @@
-/* cksum -- calculate and print POSIX checksums and sizes of files
-   Copyright (C) 2024-2025 Free Software Foundation, Inc.
+/* cksum_crc -- calculate and print POSIX checksums and sizes of files
+   Copyright (C) 2024-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 #include <config.h>
 
-#include "cksum.h"
+#include "cksum_crc.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -38,11 +38,11 @@ bswap_neon (uint64x2_t in)
 /* Calculate CRC32 using VMULL CPU instruction found in ARMv8 CPUs */
 
 bool
-cksum_vmull (FILE *fp, uint_fast32_t *crc_out, uintmax_t *length_out)
+cksum_vmull (FILE *fp, uint_fast32_t *crc_out, intmax_t *length_out)
 {
   uint64x2_t buf[BUFLEN / sizeof (uint64x2_t)];
   uint_fast32_t crc = 0;
-  uintmax_t length = 0;
+  intmax_t length = 0;
   size_t bytes_read;
   poly64x2_t single_mult_constant;
   poly64x2_t four_mult_constant;
@@ -72,12 +72,11 @@ cksum_vmull (FILE *fp, uint_fast32_t *crc_out, uintmax_t *length_out)
       uint64x2_t fold_data;
       uint64x2_t xor_crc;
 
-      if (length + bytes_read < length)
+      if (ckd_add (&length, length, bytes_read))
         {
           errno = EOVERFLOW;
           return false;
         }
-      length += bytes_read;
 
       datap = (uint64x2_t *) buf;
 

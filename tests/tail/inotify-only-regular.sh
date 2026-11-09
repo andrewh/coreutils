@@ -1,7 +1,7 @@
 #!/bin/sh
 # ensure that tail -f only uses inotify for regular files or fifos
 
-# Copyright (C) 2017-2025 Free Software Foundation, Inc.
+# Copyright (C) 2017-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,12 +19,11 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ tail
 
-grep '^#define HAVE_INOTIFY 1' "$CONFIG_HEADER" >/dev/null \
-  || skip_ 'inotify support required'
+require_inotify_supported_
 
 require_strace_ 'inotify_add_watch'
 
-returns_ 124 timeout .1 strace -e inotify_add_watch -o strace.out \
+returns_ 124 timeout .1 strace -e trace=inotify_add_watch -o strace.out \
   tail -f /dev/null || fail=1
 
 grep 'inotify' strace.out && fail=1

@@ -1,5 +1,5 @@
 /* join - join lines of two files on a common field
-   Copyright (C) 1991-2025 Free Software Foundation, Inc.
+   Copyright (C) 1991-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@
 #include "stdio--.h"
 #include "xmemcoll.h"
 #include "xstrtol.h"
-#include "argmatch.h"
 
 /* The official name of this program (e.g., no 'g' prefix).  */
 #define PROGRAM_NAME "join"
@@ -75,7 +74,7 @@ struct line
     struct linebuffer buf;	/* The line itself.  */
     idx_t nfields;		/* Number of elements in 'fields'.  */
     idx_t nfields_allocated;	/* Number of elements allocated for 'fields'. */
-    struct field *fields;
+    struct field *fields COUNTED_BY (nfields);
   };
 
 /* One or more consecutive lines read from a file that all have the
@@ -84,11 +83,11 @@ struct seq
   {
     idx_t count;		/* Elements used in 'lines'.  */
     idx_t alloc;		/* Elements allocated in 'lines'.  */
-    struct line **lines;
+    struct line **lines COUNTED_BY (alloc);
   };
 
 /* The previous line read from each file.  */
-static struct line *prevline[2] = {nullptr, nullptr};
+static struct line *prevline[2] = {NULL, NULL};
 
 /* The number of lines read from each file.  */
 static uintmax_t line_no[2] = {0, 0};
@@ -99,7 +98,7 @@ static char *g_names[2];
 /* This provides an extra line buffer for each file.  We need these if we
    try to read two consecutive lines into the same buffer, since we don't
    want to overwrite the previous buffer before we check order. */
-static struct line *spareline[2] = {nullptr, nullptr};
+static struct line *spareline[2] = {NULL, NULL};
 
 /* True if the LC_COLLATE locale is hard.  */
 static bool hard_LC_COLLATE;
@@ -108,7 +107,7 @@ static bool hard_LC_COLLATE;
 static bool print_unpairables_1, print_unpairables_2;
 
 /* If nonzero, print pairable lines.  */
-static bool print_pairables;
+static bool print_pairables = true;
 
 /* If nonzero, we have seen at least one unpairable line. */
 static bool seen_unpairable;
@@ -163,14 +162,14 @@ enum
 
 static struct option const longopts[] =
 {
-  {"ignore-case", no_argument, nullptr, 'i'},
-  {"check-order", no_argument, nullptr, CHECK_ORDER_OPTION},
-  {"nocheck-order", no_argument, nullptr, NOCHECK_ORDER_OPTION},
-  {"zero-terminated", no_argument, nullptr, 'z'},
-  {"header", no_argument, nullptr, HEADER_LINE_OPTION},
+  {"ignore-case", no_argument, NULL, 'i'},
+  {"check-order", no_argument, NULL, CHECK_ORDER_OPTION},
+  {"nocheck-order", no_argument, NULL, NOCHECK_ORDER_OPTION},
+  {"zero-terminated", no_argument, NULL, 'z'},
+  {"header", no_argument, NULL, HEADER_LINE_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Used to print non-joining lines */
@@ -206,37 +205,65 @@ standard output.  The default join field is the first, delimited by blanks.\
 \n\
 When FILE1 or FILE2 (not both) is -, read standard input.\n\
 "), stdout);
-      fputs (_("\
-\n\
-  -a FILENUM             also print unpairable lines from file FILENUM, where\n\
-                           FILENUM is 1 or 2, corresponding to FILE1 or FILE2\n\
-"), stdout);
-      fputs (_("\
-  -e STRING              replace missing (empty) input fields with STRING;\n\
-                           I.e., missing fields specified with '-12jo' options\
-\n\
-"), stdout);
-      fputs (_("\
-  -i, --ignore-case      ignore differences in case when comparing fields\n\
-  -j FIELD               equivalent to '-1 FIELD -2 FIELD'\n\
-  -o FORMAT              obey FORMAT while constructing output line\n\
-  -t CHAR                use CHAR as input and output field separator\n\
-"), stdout);
-      fputs (_("\
-  -v FILENUM             like -a FILENUM, but suppress joined output lines\n\
-  -1 FIELD               join on this FIELD of file 1\n\
-  -2 FIELD               join on this FIELD of file 2\n\
-      --check-order      check that the input is correctly sorted, even\n\
-                           if all input lines are pairable\n\
-      --nocheck-order    do not check that the input is correctly sorted\n\
-      --header           treat the first line in each file as field headers,\n\
-                           print them without trying to pair them\n\
-"), stdout);
-      fputs (_("\
-  -z, --zero-terminated  line delimiter is NUL, not newline\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+
+      oputs (_("\
+  -a FILENUM\n\
+         also print unpairable lines from file FILENUM,\n\
+         where FILENUM is 1 or 2, corresponding to FILE1 or FILE2\n\
+"));
+      oputs (_("\
+  -e STRING\n\
+         replace missing (empty) input fields with STRING;\n\
+         I.e., missing fields specified with '-12jo' options\n\
+"));
+      oputs (_("\
+  -i, --ignore-case\n\
+         ignore differences in case when comparing fields\n\
+"));
+      oputs (_("\
+  -j FIELD\n\
+         equivalent to '-1 FIELD -2 FIELD'\n\
+"));
+      oputs (_("\
+  -o FORMAT\n\
+         obey FORMAT while constructing output line\n\
+"));
+      oputs (_("\
+  -t CHAR\n\
+         use CHAR as input and output field separator\n\
+"));
+      oputs (_("\
+  -v FILENUM\n\
+         like -a FILENUM, but suppress joined output lines\n\
+"));
+      oputs (_("\
+  -1 FIELD\n\
+         join on this FIELD of file 1\n\
+"));
+      oputs (_("\
+  -2 FIELD\n\
+         join on this FIELD of file 2\n\
+"));
+      oputs (_("\
+      --check-order\n\
+         check that the input is correctly sorted, even\n\
+         if all input lines are pairable\n\
+"));
+      oputs (_("\
+      --nocheck-order\n\
+         do not check that the input is correctly sorted\n\
+"));
+      oputs (_("\
+      --header\n\
+         treat the first line in each file as field headers,\n\
+         print them without trying to pair them\n\
+"));
+      oputs (_("\
+  -z, --zero-terminated\n\
+         line delimiter is NUL, not newline\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 Unless -t CHAR is given, leading blanks separate fields and are ignored,\n\
@@ -267,21 +294,21 @@ extract_field (struct line *line, char *field, idx_t len)
   if (line->nfields >= line->nfields_allocated)
     line->fields = xpalloc (line->fields, &line->nfields_allocated, 1,
                             -1, sizeof *line->fields);
-  line->fields[line->nfields].beg = field;
-  line->fields[line->nfields].len = len;
-  ++(line->nfields);
+  idx_t const field_index = line->nfields++;
+  line->fields[field_index].beg = field;
+  line->fields[field_index].len = len;
 }
 
 static bool
 eq_tab (mcel_t g)
 {
-  return mcel_cmp (g, tab) == 0;
+  return mcel_eq (g, tab);
 }
 
 static bool
 newline_or_blank (mcel_t g)
 {
-  return g.ch == '\n' || c32isblank (g.ch);
+  return g.ch == '\n' || c32issep (g.ch);
 }
 
 /* Fill in the 'fields' structure in LINE.  */
@@ -317,12 +344,14 @@ xfields (struct line *line)
 static void
 freeline (struct line *line)
 {
-  if (line == nullptr)
+  if (line == NULL)
     return;
   free (line->fields);
-  line->fields = nullptr;
+  line->fields = NULL;
+  line->nfields_allocated = 0;
   free (line->buf.buffer);
-  line->buf.buffer = nullptr;
+  line->buf.buffer = NULL;
+  line->buf.size = 0;
 }
 
 /* Return <0 if the join field in LINE1 compares less than the one in LINE2;
@@ -349,7 +378,7 @@ keycmp (struct line const *line1, struct line const *line2,
     }
   else
     {
-      beg1 = nullptr;
+      beg1 = NULL;
       len1 = 0;
     }
 
@@ -360,7 +389,7 @@ keycmp (struct line const *line1, struct line const *line2,
     }
   else
     {
-      beg2 = nullptr;
+      beg2 = NULL;
       len2 = 0;
     }
 
@@ -488,7 +517,7 @@ get_line (FILE *fp, struct line **linep, int which)
 static void
 free_spareline (void)
 {
-  for (idx_t i = 0; i < ARRAY_CARDINALITY (spareline); i++)
+  for (idx_t i = 0; i < countof (spareline); i++)
     {
       if (spareline[i])
         {
@@ -503,7 +532,7 @@ initseq (struct seq *seq)
 {
   seq->count = 0;
   seq->alloc = 0;
-  seq->lines = nullptr;
+  seq->lines = NULL;
 }
 
 /* Read a line from FP and add it to SEQ.  Return true if successful.  */
@@ -515,7 +544,7 @@ getseq (FILE *fp, struct seq *seq, int whichfile)
     {
       seq->lines = xpalloc (seq->lines, &seq->alloc, 1, -1, sizeof *seq->lines);
       for (idx_t i = seq->count; i < seq->alloc; i++)
-        seq->lines[i] = nullptr;
+        seq->lines[i] = NULL;
     }
 
   if (get_line (fp, &seq->lines[seq->count], whichfile))
@@ -572,15 +601,14 @@ prfield (idx_t n, struct line const *line)
 static void
 prfields (struct line const *line, idx_t join_field, idx_t autocount)
 {
-  idx_t i;
   idx_t nfields = autoformat ? autocount : line->nfields;
 
-  for (i = 0; i < join_field && i < nfields; ++i)
+  for (idx_t i = 0; i < join_field && i < nfields; ++i)
     {
       fwrite (output_separator, 1, output_seplen, stdout);
       prfield (i, line);
     }
-  for (i = join_field + 1; i < nfields; ++i)
+  for (idx_t i = join_field + 1; i < nfields; ++i)
     {
       fwrite (output_separator, 1, output_seplen, stdout);
       prfield (i, line);
@@ -624,7 +652,7 @@ prjoin (struct line const *line1, struct line const *line2)
             }
           prfield (field, line);
           o = o->next;
-          if (o == nullptr)
+          if (o == NULL)
             break;
           fwrite (output_separator, 1, output_seplen, stdout);
         }
@@ -686,8 +714,8 @@ join (FILE *fp1, FILE *fp2)
       struct line const *hline1 = seq1.count ? seq1.lines[0] : &uni_blank;
       struct line const *hline2 = seq2.count ? seq2.lines[0] : &uni_blank;
       prjoin (hline1, hline2);
-      prevline[0] = nullptr;
-      prevline[1] = nullptr;
+      prevline[0] = NULL;
+      prevline[1] = NULL;
       if (seq1.count)
         advance_seq (fp1, &seq1, true, 1);
       if (seq2.count)
@@ -745,8 +773,7 @@ join (FILE *fp1, FILE *fp2)
         {
           for (idx_t i = 0; i < seq1.count - 1; ++i)
             {
-              idx_t j;
-              for (j = 0; j < seq2.count - 1; ++j)
+              for (idx_t j = 0; j < seq2.count - 1; ++j)
                 prjoin (seq1.lines[i], seq2.lines[j]);
             }
         }
@@ -772,7 +799,7 @@ join (FILE *fp1, FILE *fp2)
      tail ends of both inputs to verify that they are in order.  We
      skip the rest of the tail once we have issued a warning for that
      file, unless we actually need to print the unpairable lines.  */
-  struct line *line = nullptr;
+  struct line *line = NULL;
   bool checktail = false;
 
   if (check_input_order != CHECK_ORDER_DISABLED
@@ -829,7 +856,7 @@ add_field (int file, idx_t field)
   o = xmalloc (sizeof *o);
   o->file = file;
   o->field = field;
-  o->next = nullptr;
+  o->next = NULL;
 
   /* Add to the end of the list so the fields are in the right order.  */
   outlist_end->next = o;
@@ -847,7 +874,7 @@ string_to_join_field (char const *str)
 {
   intmax_t val;
 
-  strtol_error s_err = xstrtoimax (str, nullptr, 10, &val, "");
+  strtol_error s_err = xstrtoimax (str, NULL, 10, &val, "");
   if (s_err == LONGINT_OVERFLOW || (s_err == LONGINT_OK && PTRDIFF_MAX < val))
     val = PTRDIFF_MAX;
   else if (s_err != LONGINT_OK || val <= 0)
@@ -893,7 +920,7 @@ decode_field_spec (char const *s, int *file_index, idx_t *field_index)
 static bool
 comma_or_blank (mcel_t g)
 {
-  return g.ch == ',' || c32isblank (g.ch);
+  return g.ch == ',' || c32issep (g.ch);
 }
 
 /* Add the comma or blank separated field spec(s) in STR to 'outlist'.  */
@@ -1010,7 +1037,6 @@ main (int argc, char **argv)
   FILE *fp1, *fp2;
   int optc;
   int nfiles = 0;
-  int i;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -1022,13 +1048,8 @@ main (int argc, char **argv)
   atexit (close_stdout);
   atexit (free_spareline);
 
-  print_pairables = true;
-  seen_unpairable = false;
-  issued_disorder_warning[0] = issued_disorder_warning[1] = false;
-  check_input_order = CHECK_ORDER_DEFAULT;
-
   while ((optc = getopt_long (argc, argv, "-a:e:i1:2:j:o:t:v:z",
-                              longopts, nullptr))
+                              longopts, NULL))
          != -1)
     {
       optc_status = MUST_BE_OPERAND;
@@ -1042,7 +1063,7 @@ main (int argc, char **argv)
         case 'a':
           {
             long int val;
-            if (xstrtol (optarg, nullptr, 10, &val, "") != LONGINT_OK
+            if (xstrtol (optarg, NULL, 10, &val, "") != LONGINT_OK
                 || (val != 1 && val != 2))
               error (EXIT_FAILURE, 0,
                      _("invalid file number: %s"), quote (optarg));
@@ -1054,7 +1075,7 @@ main (int argc, char **argv)
           break;
 
         case 'e':
-          if (empty_filler && ! STREQ (empty_filler, optarg))
+          if (empty_filler && ! streq (empty_filler, optarg))
             error (EXIT_FAILURE, 0,
                    _("conflicting empty-field replacement strings"));
           empty_filler = optarg;
@@ -1089,7 +1110,7 @@ main (int argc, char **argv)
           break;
 
         case 'o':
-          if (STREQ (optarg, "auto"))
+          if (streq (optarg, "auto"))
             autoformat = true;
           else
             {
@@ -1107,7 +1128,7 @@ main (int argc, char **argv)
                 newtab = mcel_ch ('\n', 1);
                 /* output_separator does not matter.  */
               }
-            else if (STREQ (optarg, "\\0"))
+            else if (streq (optarg, "\\0"))
               {
                 newtab = mcel_ch ('\0', 1);
                 output_separator = "";
@@ -1120,7 +1141,7 @@ main (int argc, char **argv)
                          quote (optarg));
                 output_separator = optarg;
               }
-            if (tab.len && mcel_cmp (tab, newtab) != 0)
+            if (tab.len && ! mcel_eq (tab, newtab))
               error (EXIT_FAILURE, 0, _("incompatible tabs"));
             tab = newtab;
             output_seplen = newtab.len;
@@ -1176,7 +1197,7 @@ main (int argc, char **argv)
 
   /* If "-j1" was specified and it turns out not to have had an argument,
      treat it as "-j 1".  Likewise for -j2.  */
-  for (i = 0; i < 2; i++)
+  for (int i = 0; i < 2; i++)
     if (joption_count[i] != 0)
       {
         set_join_field (&join_field_1, i);
@@ -1188,10 +1209,10 @@ main (int argc, char **argv)
   if (join_field_2 < 0)
     join_field_2 = 0;
 
-  fp1 = STREQ (g_names[0], "-") ? stdin : fopen (g_names[0], "r");
+  fp1 = streq (g_names[0], "-") ? stdin : fopen (g_names[0], "r");
   if (!fp1)
     error (EXIT_FAILURE, errno, "%s", quotef (g_names[0]));
-  fp2 = STREQ (g_names[1], "-") ? stdin : fopen (g_names[1], "r");
+  fp2 = streq (g_names[1], "-") ? stdin : fopen (g_names[1], "r");
   if (!fp2)
     error (EXIT_FAILURE, errno, "%s", quotef (g_names[1]));
   if (fp1 == fp2)

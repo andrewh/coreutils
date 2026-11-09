@@ -1,6 +1,6 @@
 /* Convert decimal strings with bounds checking and exit on error.
 
-   Copyright (C) 2014-2025 Free Software Foundation, Inc.
+   Copyright (C) 2014-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 # include <inttypes.h>
 
-/* Flags for xnumtoimax and xnumtoumax.  They can be ORed togethar.  */
+/* Flags for xnumtoimax and xnumtoumax.  They can be ORed together.  */
 enum
   {
     /* If the number is less than MIN, do not diagnose the problem;

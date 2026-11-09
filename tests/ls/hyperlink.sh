@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test --hyperlink processing
 
-# Copyright (C) 2017-2025 Free Software Foundation, Inc.
+# Copyright (C) 2017-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ print_ver_ ls
 encode() {
  printf '%s\n' \
   'sp%20ace' 'ques%3ftion' 'back%5cslash' 'encoded%253Fquestion' 'testdir' \
+  'an%23chor' 'utf8%c3%a1' 'invalidutf8%e9' 'col%3aon' \
   "$1" |
  sort -k1,1.1 -s | uniq -w1 -d
 }
@@ -30,7 +31,7 @@ encode() {
 ls_encoded() {
   ef=$(encode "$1")
   echo "$ef" | grep 'dir$' >/dev/null && dir=: || dir=''
-  printf '\033]8;;file:///%s\a%s\033]8;;\a%s\n' \
+  printf '\033]8;;file:///%s\033\\%s\033]8;;\033\\%s\n' \
     "$ef" "$1" "$dir"
 }
 
@@ -43,13 +44,14 @@ mkdir testdir || framework_failure_
 (
 cd testdir
 ls_encoded "testdir" > ../exp.t || framework_failure_
-for f in 'back\slash' 'encoded%3Fquestion' 'ques?tion' 'sp ace'; do
+for f in 'an#chor' 'back\slash' 'col:on' 'encoded%3Fquestion' \
+         "$(printf 'invalidutf8\351')" 'ques?tion' 'sp ace' 'utf8á'; do
   touch "$f" || framework_failure_
   ls_encoded "$f" >> ../exp.t || framework_failure_
 done
 )
 ln -s testdir testdirl || framework_failure_
-(cat exp.t && printf '\n' && sed 's/[^\/]testdir/&l/' exp.t) > exp \
+(cat exp.t && printf '\n' && sed 's|[^/]testdir|&l|' exp.t) > exp \
   || framework_failure_
 ls --hyper testdir testdirl >out.t || fail=1
 strip_host_and_path <out.t >out || framework_failure_

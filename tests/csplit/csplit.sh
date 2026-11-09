@@ -1,7 +1,7 @@
 #!/bin/sh
 # various csplit tests
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -100,6 +100,28 @@ printf 'x%8199s\nx\n%8199s\nx\n' x x > in
 csplit in '/x\{1\}/' '{*}' > /dev/null || fail=1
 cat xx?? | compare - in || fail=1
 
+# An offset that moves the split point past the last line of input
+# consumes everything, but the final (empty) split is still created.
+rm -f in out exp xx??
+printf 'p\nq\nr\ns\nend\n' > in
+csplit in '/^s$/+2' > out || fail=1
+cat <<EOF > exp
+12
+0
+EOF
+compare exp out || fail=1
+compare in xx00 || fail=1
+compare /dev/null xx01 || fail=1
+test -f xx02 && fail=1
+# -z elides that trailing empty split
+rm -f out exp xx??
+csplit -z in '/^s$/+2' > out || fail=1
+echo 12 > exp
+compare exp out || fail=1
+compare in xx00 || fail=1
+test -f xx01 && fail=1
+rm -f in out exp xx??
+
 # Ensure file not created for empty input
 # which was the case with coreutils <= 9.5
 rm -f xx??
@@ -109,5 +131,53 @@ cat <<\EOF > experr
 csplit: '1': line number out of range
 EOF
 compare experr err || fail=1
+
+# Test the behavior of an empty pattern.
+rm -f xx?? || framework_failure_
+echo a >inp || framework_failure_
+cat <<\EOF >exp || framework_failure_
+0
+2
+EOF
+csplit inp '//' >out 2>err || fail=1
+compare /dev/null err || fail=1
+compare exp out || fail=1
+compare /dev/null xx00 || fail=1
+compare inp xx01 || fail=1
+
+# Test that the message to standard output isn't elided after read fails.
+if ! cat . >/dev/null 2>&1; then
+  echo 0 >exp-out || framework_failure_
+  cat <<\EOF >exp-err || framework_failure_
+csplit: read error: Is a directory
+EOF
+  for opt in '' '-k'; do
+    rm -f xx?? || framework_failure_
+    returns_ 1 csplit $opt . '/^a/' >out 2>err || fail=1
+    compare /dev/null xx00 || fail=1
+    compare exp-out out || fail=1
+    compare exp-err err || fail=1
+  done
+fi
+
+# Ensure -z does not remove an existing file that csplit did not create,
+# such as the input itself when a pattern is rejected.
+rm -f xx?? || framework_failure_
+echo 'original data' > xx00 || framework_failure_
+cp xx00 exp || framework_failure_
+for opt in '' '-k'; do
+  returns_ 1 csplit -z $opt xx00 '/[/' > out 2> err || fail=1
+  compare exp xx00 || fail=1
+done
+# or an output file it could not open.
+if ! uid_is_privileged_; then
+  printf 'a\nb\n' > in || framework_failure_
+  chmod a-w xx00 || framework_failure_
+  for opt in '' '-k'; do
+    returns_ 1 csplit -z $opt in 2 > out 2> err || fail=1
+    compare exp xx00 || fail=1
+  done
+  chmod u+w xx00 || framework_failure_
+fi
 
 Exit $fail

@@ -3,7 +3,7 @@
 # Due to a race condition in the test, the 'assert' script would get
 # the UMR on Solaris only some of the time, and not at all on Linux/GNU.
 
-# Copyright (C) 2000-2025 Free Software Foundation, Inc.
+# Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ check_tail_output()
 }
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 # Speedup the non inotify case
 fastpoll='-s.1 --max-unchanged-stats=1'

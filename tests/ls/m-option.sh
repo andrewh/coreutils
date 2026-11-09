@@ -1,7 +1,7 @@
 #!/bin/sh
 # exercise the -m option
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,6 +35,54 @@ b
 0 a, 12 b
 EOF
 
+compare exp out || fail=1
+
+# Ensure exact-fit comma output accounts for the trailing separator.
+touch bb c || framework_failure_
+cat <<\EOF > exp || framework_failure_
+a,
+bb, c
+EOF
+ls -w5 -m a bb c > out || fail=1
+compare exp out || fail=1
+
+printf '%s\n' 'a, bb' > exp || framework_failure_
+ls -w5 -m a bb > out || fail=1
+compare exp out || fail=1
+
+# Ensure commas in names are quoted appropriately for all quoting styles.
+# Without this quoting, interactive output could become confusing,
+# especially in the presence of NBSP etc.
+touch 'com,ma' || framework_failure_
+cat <<\EOF > exp || framework_failure_
+literal: com,ma
+shell: 'com,ma'
+shell-always: 'com,ma'
+shell-escape: 'com,ma'
+shell-escape-always: 'com,ma'
+c: "com,ma"
+c-maybe: "com,ma"
+escape: com\,ma
+locale: 'com,ma'
+clocale: "com,ma"
+EOF
+for qs in $(cut -d: -f1 exp); do
+  printf '%s: ' "$qs"
+  ls -m --quoting-style="$qs" 'com,ma' || fail=1
+done > out
+compare exp out || fail=1
+
+# Newlines are preserved with unlimited width, where -m does not wrap,
+newline='n
+l'
+touch "$newline" || framework_failure_
+printf '%s\n' "$newline" > exp || framework_failure_
+ls -m -w0 "$newline" > out || fail=1
+compare exp out || fail=1
+
+# Otherwise protect newlines that could be confused with separators.
+printf '%s\n' 'n?l' > exp || framework_failure_
+ls -m "$newline" > out || fail=1
 compare exp out || fail=1
 
 Exit $fail

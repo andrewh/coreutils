@@ -1,4 +1,4 @@
-'\" Copyright (C) 1998-2025 Free Software Foundation, Inc.
+'\" Copyright (C) 1998-2026 Free Software Foundation, Inc.
 '\"
 '\" This is free software.  You may redistribute copies of it under the terms
 '\" of the GNU General Public License <https://www.gnu.org/licenses/gpl.html>.
@@ -49,7 +49,9 @@ users who are members of the file's group (\fBg\fP),
 and the permissions granted to users that are in neither of the two preceding
 categories (\fBo\fP).
 .PP
-A numeric mode is from one to four octal digits (0\-7), derived by
+.ds cU https://www.gnu.org/software/coreutils/manual/html_node
+A \X'tty: link \*(cU/Numeric-Modes.html'\fBnumeric mode\fP\X'tty: link'
+is from one to four octal digits (0\-7), derived by
 adding up the bits with values 4, 2, and 1.  Omitted digits are
 assumed to be leading zeros.
 The first digit selects the set user ID (4) and set group ID (2) and

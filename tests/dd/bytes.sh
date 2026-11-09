@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (C) 2012-2025 Free Software Foundation, Inc.
+# Copyright (C) 2012-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@ for operands in "oseek=8B" "seek=8 oflag=seek_bytes"; do
   compare expected2 out2 || fail=1
 done
 
-# Check recursive integer parsing
+# Check multiplicative integer parsing
 for oseek in '1x2x4 oflag=seek_bytes' '1Bx2x4' '1Bx8' '2Bx4B' '2x4B'; do
   # seek bytes
   echo abcdefghijklm |
@@ -68,8 +68,27 @@ for oseek in '1x2x4 oflag=seek_bytes' '1Bx2x4' '1Bx8' '2Bx4B' '2x4B'; do
   compare expected out || fail=1
 done
 
+# Check that long multiplier chains don't exhaust a restricted stack.
+if (ulimit -S -s 256 && dd if=/dev/null count=1) 2>/dev/null; then
+  long_multiplier=$(yes 1x | head -n 10000 | tr -d '\n')1 || framework_failure_
+  (ulimit -S -s 256 && touch ulimit-worked &&
+    dd count="$long_multiplier" if=/dev/null of=/dev/null status=none) \
+      || { test -f ulimit-worked && fail=1; }
+fi
+
 # Negative checks for integer parsing
 for count in B B1 Bx1 KBB BB KBb KBx x1 1x 1xx1; do
   returns_ 1 dd count=$count </dev/null >/dev/null || fail=1
 done
+
+printf abcdefghijklnopqrstuvwxyz >exp || framework_failure_
+for seek_arg in seek=12B 'seek=12 oflag=seek_bytes'; do
+  for bs_arg in '' bs=13 obs=13; do
+    printf abcdefghijklm >out &&
+    printf nopqrstuvwxyz >in || framework_failure_
+    dd if=in of=out $bs_arg $seek_arg status=none || fail=1
+    compare exp out || fail=1
+  done
+done
+
 Exit $fail

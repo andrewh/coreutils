@@ -1,7 +1,7 @@
 #!/bin/sh
 # basic tests for echo
 
-# Copyright (C) 2018-2025 Free Software Foundation, Inc.
+# Copyright (C) 2018-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -94,6 +94,28 @@ cat <<\EOF > exp
 0000010
 JKLMNOJKLMNO
 EOF
+compare exp out || fail=1
+
+# echo has no \", \u or \U escape (unlike printf):
+# the backslash and the following character are output as is.
+cat <<\EOF > exp
+a\"b
+a\u0041b
+a\U00000041b
+\u
+\U0000004
+\u00zz
+\uD800
+\U00110000
+EOF
+$prog -e 'a\"b' > out || fail=1
+$prog -e 'a\u0041b' >> out || fail=1
+$prog -e 'a\U00000041b' >> out || fail=1
+$prog -e '\u' >> out || fail=1
+$prog -e '\U0000004' >> out || fail=1
+$prog -e '\u00zz' >> out || fail=1
+$prog -e '\uD800' >> out || fail=1
+$prog -e '\U00110000' >> out || fail=1
 compare exp out || fail=1
 
 Exit $fail

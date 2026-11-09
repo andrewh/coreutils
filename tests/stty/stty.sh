@@ -1,7 +1,7 @@
 #!/bin/sh
 # Make sure stty can parse most of its options.
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@ returns_ 1 stty -raw -a 2>/dev/null || fail=1
 # Build a list of all boolean options stty accepts on this system.
 # Don't depend on terminal width.  Put each option on its own line,
 # remove all non-boolean ones, then remove any leading hyphens.
-sed_del='/^speed/d;/^rows/d;/^columns/d;/ = /d'
+sed_del='/^[io]*speed/d;/^rows/d;/^columns/d;/ = /d'
 options=$(stty -a | tr -s ';' '\n' | sed "s/^ //;$sed_del;s/-//g")
 
 # Take them one at a time, with and without the leading '-'.
@@ -83,9 +83,9 @@ done
 stty $(cat $saved_state)
 
 # Ensure we validate options before accessing the device
-strace -o log1 -e ioctl stty --version || fail=1
+strace -o log1 -e trace=ioctl stty --version || fail=1
 n_ioctl1=$(wc -l < log1) || framework_failure_
-returns_ 1 strace -o log2 -e ioctl stty -blahblah || fail=1
+returns_ 1 strace -o log2 -e trace=ioctl stty -blahblah || fail=1
 n_ioctl2=$(wc -l < log2) || framework_failure_
 test "$n_ioctl1" -ge "$n_ioctl2" || fail=1
 

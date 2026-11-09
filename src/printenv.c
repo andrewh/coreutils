@@ -1,5 +1,5 @@
 /* printenv -- print all or part of environment
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,7 +32,10 @@
 #include <sys/types.h>
 #include <getopt.h>
 
+#include "argmatch.h"  /* argmatch($QUOTING_STYLE).  */
 #include "system.h"
+#include "printenv.h"
+#include "xbinary-io.h"
 
 /* Exit status for syntax errors, etc.  */
 enum { PRINTENV_FAILURE = 2 };
@@ -44,12 +47,20 @@ enum { PRINTENV_FAILURE = 2 };
   proper_name ("David MacKenzie"), \
   proper_name ("Richard Mlynarik")
 
+/* For long options that have no equivalent short option, use a
+   non-character as a pseudo short option, starting with CHAR_MAX + 1.  */
+enum
+{
+  QUOTING_STYLE_OPTION = CHAR_MAX + 1,
+};
+
 static struct option const longopts[] =
 {
-  {"null", no_argument, nullptr, '0'},
+  {"null", no_argument, NULL, '0'},
+  {"quoting-style", required_argument, NULL, QUOTING_STYLE_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -66,11 +77,18 @@ If no VARIABLE is specified, print name and value pairs for them all.\n\
 \n\
 "),
               program_name);
-      fputs (_("\
-  -0, --null     end each output line with NUL, not newline\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -0, --null\n\
+         end each output line with NUL, not newline\n\
+"));
+      oputs (_("\
+      --quoting-style=WORD\n\
+         use quoting style WORD for names and values:\n\
+           literal, locale, shell, shell-always,\n\
+           shell-escape, shell-escape-always, c, escape\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       printf (USAGE_BUILTIN_WARNING, PROGRAM_NAME);
       emit_ancillary_info (PROGRAM_NAME);
     }
@@ -80,12 +98,8 @@ If no VARIABLE is specified, print name and value pairs for them all.\n\
 int
 main (int argc, char **argv)
 {
-  char **env;
-  char *ep, *ap;
-  int i;
-  bool ok;
-  int optc;
   bool opt_nul_terminate_output = false;
+  int quoting_style_opt = -1;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -96,12 +110,19 @@ main (int argc, char **argv)
   initialize_exit_failure (PRINTENV_FAILURE);
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "+iu:0", longopts, nullptr)) != -1)
+  int optc;
+  while ((optc = getopt_long (argc, argv, "+0", longopts, NULL)) != -1)
     {
       switch (optc)
         {
         case '0':
           opt_nul_terminate_output = true;
+          quoting_style_opt = literal_quoting_style;
+          break;
+        case QUOTING_STYLE_OPTION:
+          quoting_style_opt = XARGMATCH ("--quoting-style", optarg,
+                                         quoting_style_args,
+                                         quoting_style_vals);
           break;
         case_GETOPT_HELP_CHAR;
         case_GETOPT_VERSION_CHAR (PROGRAM_NAME, AUTHORS);
@@ -110,17 +131,38 @@ main (int argc, char **argv)
         }
     }
 
-  if (optind >= argc)
+  bool quote_output = false;
+  int qs = quoting_style_opt;
+  if (qs < 0 && isatty (STDOUT_FILENO))
     {
-      for (env = environ; *env != nullptr; ++env)
-        printf ("%s%c", *env, opt_nul_terminate_output ? '\0' : '\n');
+      qs = getenv_quoting_style ();
+      if (qs < 0)
+        qs = shell_escape_quoting_style;
+    }
+  if (0 <= qs && qs != literal_quoting_style)
+    {
+      set_quoting_style (NULL, qs);
+      quote_output = true;
+    }
+
+  idx_t const n_args = argc - optind;
+  bool ok;
+  char const terminator = opt_nul_terminate_output ? '\0' : '\n';
+
+  if (opt_nul_terminate_output)
+    xset_binary_mode (STDOUT_FILENO, O_BINARY);
+
+  if (n_args <= 0)
+    {
+      for (char **env = environ; *env != NULL; ++env)
+        print_envvar (*env, terminator, quote_output);
       ok = true;
     }
   else
     {
       int matches = 0;
 
-      for (i = optind; i < argc; ++i)
+      for (int i = optind; i < argc; ++i)
         {
           bool matched = false;
 
@@ -128,16 +170,17 @@ main (int argc, char **argv)
           if (strchr (argv[i], '='))
             continue;
 
-          for (env = environ; *env; ++env)
+          for (char **env = environ; *env; ++env)
             {
-              ep = *env;
-              ap = argv[i];
+              char const *ep = *env;
+              char const *ap = argv[i];
               while (*ep != '\0' && *ap != '\0' && *ep++ == *ap++)
                 {
                   if (*ep == '=' && *ap == '\0')
                     {
-                      printf ("%s%c", ep + 1,
-                              opt_nul_terminate_output ? '\0' : '\n');
+                      char const *val = ep + 1;
+                      fputs (quote_output ? quoteN (val) : val, stdout);
+                      putchar (terminator);
                       matched = true;
                       break;
                     }

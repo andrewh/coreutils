@@ -1,5 +1,5 @@
 /* GNU's who.
-   Copyright (C) 1992-2025 Free Software Foundation, Inc.
+   Copyright (C) 1992-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@
 #include "readutmp.h"
 #include "hard-locale.h"
 #include "quote.h"
+#include "xvasprintf.h"
 
 #ifdef TTY_GROUP_NAME
 # include <grp.h>
@@ -152,24 +153,24 @@ enum
 
 static struct option const longopts[] =
 {
-  {"all", no_argument, nullptr, 'a'},
-  {"boot", no_argument, nullptr, 'b'},
-  {"count", no_argument, nullptr, 'q'},
-  {"dead", no_argument, nullptr, 'd'},
-  {"heading", no_argument, nullptr, 'H'},
-  {"login", no_argument, nullptr, 'l'},
-  {"lookup", no_argument, nullptr, LOOKUP_OPTION},
-  {"message", no_argument, nullptr, 'T'},
-  {"mesg", no_argument, nullptr, 'T'},
-  {"process", no_argument, nullptr, 'p'},
-  {"runlevel", no_argument, nullptr, 'r'},
-  {"short", no_argument, nullptr, 's'},
-  {"time", no_argument, nullptr, 't'},
-  {"users", no_argument, nullptr, 'u'},
-  {"writable", no_argument, nullptr, 'T'},
+  {"all", no_argument, NULL, 'a'},
+  {"boot", no_argument, NULL, 'b'},
+  {"count", no_argument, NULL, 'q'},
+  {"dead", no_argument, NULL, 'd'},
+  {"heading", no_argument, NULL, 'H'},
+  {"login", no_argument, NULL, 'l'},
+  {"lookup", no_argument, NULL, LOOKUP_OPTION},
+  {"message", no_argument, NULL, 'T'},
+  {"mesg", no_argument, NULL, 'T'},
+  {"process", no_argument, NULL, 'p'},
+  {"runlevel", no_argument, NULL, 'r'},
+  {"short", no_argument, NULL, 's'},
+  {"time", no_argument, NULL, 't'},
+  {"users", no_argument, NULL, 'u'},
+  {"writable", no_argument, NULL, 'T'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Return a string representing the time between WHEN and now.
@@ -205,7 +206,7 @@ idle_string (time_t when, time_t boottime)
 
 /* Return a time string.  */
 static char const *
-time_string (struct gl_utmp const *utmp_ent)
+time_string (STRUCT_UTMP const *utmp_ent)
 {
   static char buf[INT_STRLEN_BOUND (intmax_t) + sizeof "-%m-%d %H:%M"];
   struct tm *tmp = localtime (&utmp_ent->ut_ts.tv_sec);
@@ -233,7 +234,6 @@ print_line (char const *user, const char state,
   char x_idle[1 + IDLESTR_LEN + 1];
   char x_pid[1 + INT_STRLEN_BOUND (pid_t) + 1];
   char *x_exitstr;
-  int err;
 
   mesg[1] = state;
 
@@ -253,32 +253,29 @@ print_line (char const *user, const char state,
   else
     *x_exitstr = '\0';
 
-  err = asprintf (&buf,
-                  "%-8s"
-                  "%s"
-                  " %-12s"
-                  " %-*s"
-                  "%s"
-                  "%s"
-                  " %-8s"
-                  "%s"
-                  ,
-                  user ? user : "   .",
-                  include_mesg ? mesg : "",
-                  line,
-                  time_format_width,
-                  time_str,
-                  x_idle,
-                  x_pid,
-                  /* FIXME: it's not really clear whether the following
-                     field should be in the short_output.  A strict reading
-                     of SUSv2 would suggest not, but I haven't seen any
-                     implementations that actually work that way... */
-                  comment,
-                  x_exitstr
+  buf = xasprintf ("%-8s"
+                   "%s"
+                   " %-12s"
+                   " %-*s"
+                   "%s"
+                   "%s"
+                   " %-8s"
+                   "%s"
+                   ,
+                   user ? user : "   .",
+                   include_mesg ? mesg : "",
+                   line,
+                   time_format_width,
+                   time_str,
+                   x_idle,
+                   x_pid,
+                   /* FIXME: it's not really clear whether the following
+                      field should be in the short_output.  A strict reading
+                      of SUSv2 would suggest not, but I haven't seen any
+                      implementations that actually work that way... */
+                   comment,
+                   x_exitstr
                   );
-  if (err == -1)
-    xalloc_die ();
 
   {
     /* Remove any trailing spaces.  */
@@ -312,7 +309,7 @@ is_tty_writable (struct stat const *pstat)
 /* Send properly parsed USER_PROCESS info to print_line.  The most
    recent boot time is BOOTTIME. */
 static void
-print_user (struct gl_utmp const *utmp_ent, time_t boottime)
+print_user (STRUCT_UTMP const *utmp_ent, time_t boottime)
 {
   struct stat stats;
   time_t last_change;
@@ -363,8 +360,8 @@ print_user (struct gl_utmp const *utmp_ent, time_t boottime)
 #if HAVE_STRUCT_XTMP_UT_HOST
   if (utmp_ent->ut_host[0])
     {
-      char *host = nullptr;
-      char *display = nullptr;
+      char *host = NULL;
+      char *display = NULL;
       char *ut_host = utmp_ent->ut_host;
 
       /* Look for an X display.  */
@@ -387,7 +384,7 @@ print_user (struct gl_utmp const *utmp_ent, time_t boottime)
           if (hostlen < needed)
             {
               free (hoststr);
-              hoststr = xpalloc (nullptr, &hostlen, needed - hostlen, -1, 1);
+              hoststr = xpalloc (NULL, &hostlen, needed - hostlen, -1, 1);
             }
           char *p = hoststr;
           *p++ = '(';
@@ -401,7 +398,7 @@ print_user (struct gl_utmp const *utmp_ent, time_t boottime)
           if (hostlen < needed)
             {
               free (hoststr);
-              hoststr = xpalloc (nullptr, &hostlen, needed - hostlen, -1, 1);
+              hoststr = xpalloc (NULL, &hostlen, needed - hostlen, -1, 1);
             }
           char *p = hoststr;
           *p++ = '(';
@@ -426,14 +423,14 @@ print_user (struct gl_utmp const *utmp_ent, time_t boottime)
 }
 
 static void
-print_boottime (struct gl_utmp const *utmp_ent)
+print_boottime (STRUCT_UTMP const *utmp_ent)
 {
   print_line ("", ' ', _("system boot"),
               time_string (utmp_ent), "", "", "", "");
 }
 
 static char *
-make_id_equals_comment (struct gl_utmp const *utmp_ent)
+make_id_equals_comment (STRUCT_UTMP const *utmp_ent)
 {
   char const *id = UT_ID (utmp_ent);
   idx_t idlen = strlen (id);
@@ -447,7 +444,7 @@ make_id_equals_comment (struct gl_utmp const *utmp_ent)
 }
 
 static void
-print_deadprocs (struct gl_utmp const *utmp_ent)
+print_deadprocs (STRUCT_UTMP const *utmp_ent)
 {
   static char *exitstr;
   char *comment = make_id_equals_comment (utmp_ent);
@@ -470,7 +467,7 @@ print_deadprocs (struct gl_utmp const *utmp_ent)
 }
 
 static void
-print_login (struct gl_utmp const *utmp_ent)
+print_login (STRUCT_UTMP const *utmp_ent)
 {
   char *comment = make_id_equals_comment (utmp_ent);
   PIDSTR_DECL_AND_INIT (pidstr, utmp_ent);
@@ -483,7 +480,7 @@ print_login (struct gl_utmp const *utmp_ent)
 }
 
 static void
-print_initspawn (struct gl_utmp const *utmp_ent)
+print_initspawn (STRUCT_UTMP const *utmp_ent)
 {
   char *comment = make_id_equals_comment (utmp_ent);
   PIDSTR_DECL_AND_INIT (pidstr, utmp_ent);
@@ -494,7 +491,7 @@ print_initspawn (struct gl_utmp const *utmp_ent)
 }
 
 static void
-print_clockchange (struct gl_utmp const *utmp_ent)
+print_clockchange (STRUCT_UTMP const *utmp_ent)
 {
   /* FIXME: handle NEW_TIME & OLD_TIME both */
   print_line ("", ' ', _("clock change"),
@@ -502,7 +499,7 @@ print_clockchange (struct gl_utmp const *utmp_ent)
 }
 
 static void
-print_runlevel (struct gl_utmp const *utmp_ent)
+print_runlevel (STRUCT_UTMP const *utmp_ent)
 {
   static char *runlevline, *comment;
   unsigned char last = utmp_ent->ut_pid / 256;
@@ -518,17 +515,14 @@ print_runlevel (struct gl_utmp const *utmp_ent)
 
   print_line ("", ' ', runlevline, time_string (utmp_ent),
               "", "", c_isprint (last) ? comment : "", "");
-
-  return;
 }
 
 /* Print the username of each valid entry and the number of valid entries
    in UTMP_BUF, which should have N elements. */
 static void
-list_entries_who (idx_t n, struct gl_utmp const *utmp_buf)
+list_entries_who (idx_t n, STRUCT_UTMP const *utmp_buf)
 {
   idx_t entries = 0;
-  char const *separator = "";
 
   while (n--)
     {
@@ -538,9 +532,10 @@ list_entries_who (idx_t n, struct gl_utmp const *utmp_buf)
 
           trimmed_name = extract_trimmed_name (utmp_buf);
 
-          printf ("%s%s", separator, trimmed_name);
+          if (entries)
+            putchar (' ');
+          fputs (trimmed_name, stdout);
           free (trimmed_name);
-          separator = " ";
           entries++;
         }
       utmp_buf++;
@@ -557,9 +552,9 @@ print_heading (void)
 
 /* Display UTMP_BUF, which should have N entries. */
 static void
-scan_entries (idx_t n, struct gl_utmp const *utmp_buf)
+scan_entries (idx_t n, STRUCT_UTMP const *utmp_buf)
 {
-  char *ttyname_b IF_LINT ( = nullptr);
+  char *ttyname_b IF_LINT ( = NULL);
   time_t boottime = TYPE_MINIMUM (time_t);
 
   if (include_heading)
@@ -611,7 +606,7 @@ static void
 who (char const *filename, int options)
 {
   idx_t n_users;
-  struct gl_utmp *utmp_buf;
+  STRUCT_UTMP *utmp_buf;
   if (short_list)
     options |= READ_UTMP_USER_PROCESS;
   if (read_utmp (filename, &n_users, &utmp_buf, options) != 0)
@@ -638,33 +633,57 @@ Print information about users who are currently logged in.\n\
 "), stdout);
       fputs (_("\
 \n\
+"), stdout);
+      oputs (_("\
   -a, --all         same as -b -d --login -p -r -t -T -u\n\
+"));
+      oputs (_("\
   -b, --boot        time of last system boot\n\
+"));
+      oputs (_("\
   -d, --dead        print dead processes\n\
+"));
+      oputs (_("\
   -H, --heading     print line of column headings\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -l, --login       print system login processes\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
       --lookup      attempt to canonicalize hostnames via DNS\n\
-  -m                only hostname and user associated with stdin\n\
+"));
+      oputs (_("\
+  -m                only hostname and user associated with standard input\n\
+"));
+      oputs (_("\
   -p, --process     print active processes spawned by init\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -q, --count       all login names and number of users logged on\n\
+"));
+      oputs (_("\
   -r, --runlevel    print current runlevel\n\
+"));
+      oputs (_("\
   -s, --short       print only name, line, and time (default)\n\
+"));
+      oputs (_("\
   -t, --time        print last system clock change\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -T, -w, --mesg    add user's message status as +, - or ?\n\
-  -u, --users       list users logged in\n\
+"));
+      oputs (_("\
+  -u, --users       list users logged in, including idle time\n\
+"));
+      oputs (_("\
       --message     same as -T\n\
+"));
+      oputs (_("\
       --writable    same as -T\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       printf (_("\
 \n\
 If FILE is not specified, use %s.  %s as FILE is common.\n\
@@ -689,7 +708,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "abdlmpqrstuwHT", longopts, nullptr))
+  while ((optc = getopt_long (argc, argv, "abdlmpqrstuwHT", longopts, NULL))
          != -1)
     {
       switch (optc)

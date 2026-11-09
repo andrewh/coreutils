@@ -1,5 +1,5 @@
 /* expand - convert tabs to spaces
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,11 +34,14 @@
 
 #include <config.h>
 
-#include <ctype.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <sys/types.h>
+
 #include "system.h"
+#include "ioblksize.h"
+#include "mcel.h"
+#include "mbbuf.h"
 #include "expand-common.h"
 
 /* The official name of this program (e.g., no 'g' prefix).  */
@@ -50,11 +53,11 @@ static char const shortopts[] = "it:0::1::2::3::4::5::6::7::8::9::";
 
 static struct option const longopts[] =
 {
-  {"tabs", required_argument, nullptr, 't'},
-  {"initial", no_argument, nullptr, 'i'},
+  {"tabs", required_argument, NULL, 't'},
+  {"initial", no_argument, NULL, 'i'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -75,13 +78,17 @@ Convert tabs in each FILE to spaces, writing to standard output.\n\
       emit_stdin_note ();
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -i, --initial    do not convert tabs after non blanks\n\
-  -t, --tabs=N     have tabs N characters apart, not 8\n\
-"), stdout);
-      emit_tab_list_info ();
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -i, --initial\n\
+         do not convert tabs after non blanks\n\
+"));
+      oputs (_("\
+  -t, --tabs=N\n\
+         have tabs N characters apart, not 8\n\
+"));
+      emit_tab_list_info (PROGRAM_NAME);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -95,15 +102,19 @@ static void
 expand (void)
 {
   /* Input stream.  */
-  FILE *fp = next_file (nullptr);
+  FILE *fp = next_file (NULL);
 
   if (!fp)
     return;
 
+  static char line_in[IO_BUFSIZE];
+  mbbuf_t mbbuf;
+  mbbuf_init (&mbbuf, line_in, sizeof line_in, fp);
+
   while (true)
     {
       /* Input character, or EOF.  */
-      int c;
+      mcel_t g;
 
       /* If true, perform translations.  */
       bool convert = true;
@@ -123,12 +134,15 @@ expand (void)
 
       do
         {
-          while ((c = getc (fp)) < 0 && (fp = next_file (fp)))
-            continue;
+          while ((g = mbbuf_get_char (&mbbuf)).ch == MBBUF_EOF
+                 && (fp = next_file (fp)))
+            mbbuf_init (&mbbuf, line_in, sizeof line_in, fp);
 
           if (convert)
             {
-              if (c == '\t')
+              convert &= convert_entire_line || c32issep (g.ch);
+
+              if (g.ch == '\t')
                 {
                   /* Column the next input tab stop is on.  */
                   bool last_tab;
@@ -139,9 +153,12 @@ expand (void)
                     if (putchar (' ') < 0)
                       write_error ();
 
-                  c = ' ';
+                  if (putchar (' ') < 0)
+                    write_error ();
+
+                  continue;
                 }
-              else if (c == '\b')
+              else if (g.ch == '\b')
                 {
                   /* Go back one column, and force recalculation of the
                      next tab stop.  */
@@ -150,20 +167,21 @@ expand (void)
                 }
               else
                 {
-                  if (ckd_add (&column, column, 1))
+                  int width = c32width (g.ch);
+                  if (ckd_add (&column, column, width < 0 ? 1 : width))
                     error (EXIT_FAILURE, 0, _("input line is too long"));
                 }
 
-              convert &= convert_entire_line || !! isblank (c);
             }
 
-          if (c < 0)
+          if (g.ch == MBBUF_EOF)
             return;
 
-          if (putchar (c) < 0)
+          fwrite (mbbuf_char_offset (&mbbuf, g), sizeof (char), g.len, stdout);
+          if (ferror (stdout))
             write_error ();
         }
-      while (c != '\n');
+      while (g.ch != '\n');
     }
 }
 
@@ -181,7 +199,7 @@ main (int argc, char **argv)
   atexit (close_stdout);
   convert_entire_line = true;
 
-  while ((c = getopt_long (argc, argv, shortopts, longopts, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, shortopts, longopts, NULL)) != -1)
     {
       switch (c)
         {
@@ -217,7 +235,7 @@ main (int argc, char **argv)
 
   finalize_tab_stops ();
 
-  set_file_list (optind < argc ? &argv[optind] : nullptr);
+  set_file_list (optind < argc ? &argv[optind] : NULL);
 
   expand ();
 

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test uniq.
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -234,6 +234,20 @@ my @Tests =
         "  - 'separate'\n" .
         "  - 'both'\n" .
         "Try '$prog --help' for more information.\n"}],
+ # Test for read buffer overrun.
+ do { my $longline = "\360\237\230\200" . "A" x 255 . "\n";
+      ['146', '-w256', {IN  => $longline x 2}, {OUT => $longline}] },
+ # Invalid -f, -s and -w values; the value is printed as given.
+ ['147', '-f x', {IN=>""}, {EXIT=>1},
+  {ERR=>"$prog: 'x': invalid number of fields to skip\n"}],
+ ['148', '-s x', {IN=>""}, {EXIT=>1},
+  {ERR=>"$prog: 'x': invalid number of bytes to skip\n"}],
+ ['149', '-w x', {IN=>""}, {EXIT=>1},
+  {ERR=>"$prog: 'x': invalid number of bytes to compare\n"}],
+ ['150', '--skip-fields=', {IN=>""}, {EXIT=>1},
+  {ERR=>"$prog: '': invalid number of fields to skip\n"}],
+ ['151', "-f 'a b'", {IN=>""}, {EXIT=>1},
+  {ERR=>"$prog: 'a b': invalid number of fields to skip\n"}],
 );
 
 # Locale related tests
@@ -280,7 +294,7 @@ if ($mb_locale ne 'C')
         my @new_t = @$t;
         my $test_name = shift @new_t;
 
-        # In test #145, replace the each ‘...’ by '...'.
+        # In test #145, replace each ‘...’ by '...'.
         if ($test_name =~ "145")
           {
             my $sub = { ERR_SUBST => "s/‘([^’]+)’/'\$1'/g"};
@@ -289,7 +303,8 @@ if ($mb_locale ne 'C')
           }
         next if (   $test_name =~ "schar"
                  or $test_name =~ "^obs-plus"
-                 or $test_name =~ "119");
+                 or $test_name =~ "119"
+                 or grep { $test_name eq $_ } (147..151));
         push @new, ["$test_name-mb", @new_t, {ENV => "LC_ALL=$mb_locale"}];
       }
     push @Tests, @new;

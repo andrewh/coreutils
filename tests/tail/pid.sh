@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test the --pid option of tail.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ getlimits_
 touch empty here || framework_failure_
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 for mode in '' '---disable-inotify'; do
   # Use tail itself to create a background process to monitor,

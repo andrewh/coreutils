@@ -1,6 +1,6 @@
 /* Root device and inode number checking.
 
-   Copyright (C) 2003-2025 Free Software Foundation, Inc.
+   Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ get_root_dev_ino (struct dev_ino *root_d_i) _GL_ATTRIBUTE_NONNULL ();
 # define ROOT_DEV_INO_WARN(Dirname)					\
   do									\
     {									\
-      if (STREQ (Dirname, "/"))						\
+      if (streq (Dirname, "/"))						\
         error (0, 0, _("it is dangerous to operate recursively on %s"),	\
                quoteaf (Dirname));					\
       else								\

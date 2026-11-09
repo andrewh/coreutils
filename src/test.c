@@ -2,7 +2,7 @@
 
 /* Modified to run with the GNU shell by bfox. */
 
-/* Copyright (C) 1987-2025 Free Software Foundation, Inc.
+/* Copyright (C) 1987-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,29 +21,22 @@
    the shell builtin version. */
 
 #include <config.h>
-#include <ctype.h>
 #include <stdio.h>
 #include <sys/types.h>
 
 #define TEST_STANDALONE 1
 
-#ifndef LBRACKET
-# define LBRACKET 0
-#endif
-
 /* The official name of this program (e.g., no 'g' prefix).  */
-#if LBRACKET
-# define PROGRAM_NAME "["
-#else
-# define PROGRAM_NAME "test"
-#endif
+#define PROGRAM_NAME (test_mode == TEST_TEST ? "test" : "[")
 
 #include "system.h"
 #include "assure.h"
 #include "c-ctype.h"
+#include "issymlink.h"
 #include "quote.h"
 #include "stat-time.h"
 #include "strnumcmp.h"
+#include "test.h"
 
 #include <stdarg.h>
 
@@ -185,20 +178,20 @@ get_mtime (char const *filename)
 static int
 binop (char const *s)
 {
-  return (  STREQ (s, "="  ) ? EQ_STRING_BINOP
-          : STREQ (s, "==" ) ? EQ_STRING_BINOP /* an alias for = */
-          : STREQ (s, "!=" ) ? NE_STRING_BINOP
-          : STREQ (s, ">"  ) ? GT_STRING_BINOP
-          : STREQ (s, "<"  ) ? LT_STRING_BINOP
-          : STREQ (s, "-eq") ? EQ_BINOP
-          : STREQ (s, "-ne") ? NE_BINOP
-          : STREQ (s, "-lt") ? LT_BINOP
-          : STREQ (s, "-le") ? LE_BINOP
-          : STREQ (s, "-gt") ? GT_BINOP
-          : STREQ (s, "-ge") ? GE_BINOP
-          : STREQ (s, "-ot") ? OT_BINOP
-          : STREQ (s, "-nt") ? NT_BINOP
-          : STREQ (s, "-ef") ? EF_BINOP
+  return (  streq (s, "="  ) ? EQ_STRING_BINOP
+          : streq (s, "==" ) ? EQ_STRING_BINOP /* an alias for = */
+          : streq (s, "!=" ) ? NE_STRING_BINOP
+          : streq (s, ">"  ) ? GT_STRING_BINOP
+          : streq (s, "<"  ) ? LT_STRING_BINOP
+          : streq (s, "-eq") ? EQ_BINOP
+          : streq (s, "-ne") ? NE_BINOP
+          : streq (s, "-lt") ? LT_BINOP
+          : streq (s, "-le") ? LE_BINOP
+          : streq (s, "-gt") ? GT_BINOP
+          : streq (s, "-ge") ? GE_BINOP
+          : streq (s, "-ot") ? OT_BINOP
+          : streq (s, "-nt") ? NT_BINOP
+          : streq (s, "-ef") ? EF_BINOP
           : -1);
 }
 
@@ -245,7 +238,7 @@ term (void)
       advance (true);
 
       for (nargs = 1;
-           pos + nargs < argc && ! STREQ (argv[pos + nargs], ")");
+           pos + nargs < argc && ! streq (argv[pos + nargs], ")");
            nargs++)
         if (nargs == 4)
           {
@@ -254,7 +247,7 @@ term (void)
           }
 
       value = posixtest (nargs);
-      if (argv[pos] == 0)
+      if (!argv[pos])
         test_syntax_error (_("%s expected"), quote (")"));
       else
         if (argv[pos][0] != ')' || argv[pos][1])
@@ -264,7 +257,7 @@ term (void)
     }
 
   /* Are there enough arguments left that this could be dyadic?  */
-  else if (4 <= argc - pos && STREQ (argv[pos], "-l")
+  else if (4 <= argc - pos && streq (argv[pos], "-l")
            && 0 <= (bop = binop (argv[pos + 2])))
     value = binary_operator (true, bop);
   else if (3 <= argc - pos
@@ -272,7 +265,8 @@ term (void)
     value = binary_operator (false, bop);
 
   /* It might be a switch type argument.  */
-  else if (argv[pos][0] == '-' && argv[pos][1] && argv[pos][2] == '\0')
+  else if (argv[pos][0] == '-' && argv[pos][1] && argv[pos][1] != 'a'
+           && argv[pos][1] != 'o' && argv[pos][2] == '\0')
     value = unary_operator ();
   else
     {
@@ -287,14 +281,13 @@ static bool
 binary_operator (bool l_is_l, enum binop bop)
 {
   int op;
-  struct stat stat_buf, stat_spare;
 
   if (l_is_l)
     advance (false);
   op = pos + 1;
 
   /* Is the right integer expression of the form '-l string'? */
-  bool r_is_l = op < argc - 2 && STREQ (argv[op + 1], "-l");
+  bool r_is_l = op < argc - 2 && streq (argv[op + 1], "-l");
   if (r_is_l)
     advance (false);
 
@@ -339,13 +332,17 @@ binary_operator (bool l_is_l, enum binop bop)
     case EF_BINOP:
       if (l_is_l | r_is_l)
         test_syntax_error (_("-ef does not accept -l"));
-      return (stat (argv[op - 1], &stat_buf) == 0
-              && stat (argv[op + 1], &stat_spare) == 0
-              && SAME_INODE (stat_buf, stat_spare));
+      else
+        {
+          struct stat st[2];
+          return (stat (argv[op - 1], &st[0]) == 0
+                  && stat (argv[op + 1], &st[1]) == 0
+                  && psame_inode (&st[0], &st[1]));
+        }
 
     case EQ_STRING_BINOP:
     case NE_STRING_BINOP:
-      return STREQ (argv[op - 1], argv[op + 1]) == (bop == EQ_STRING_BINOP);
+      return streq (argv[op - 1], argv[op + 1]) == (bop == EQ_STRING_BINOP);
 
     case GT_STRING_BINOP:
     case LT_STRING_BINOP:
@@ -464,8 +461,7 @@ unary_operator (void)
 
     case 'h':			/* File is a symbolic link? */
       unary_advance ();
-      return (lstat (argv[pos - 1], &stat_buf) == 0
-              && S_ISLNK (stat_buf.st_mode));
+      return issymlink (argv[pos - 1]) == 1;
 
     case 'u':			/* File is setuid? */
       unary_advance ();
@@ -489,7 +485,7 @@ unary_operator (void)
         unary_advance ();
         arg = find_int (argv[pos - 1]);
         errno = 0;
-        fd = strtol (arg, nullptr, 10);
+        fd = strtol (arg, NULL, 10);
         return (errno != ERANGE && 0 <= fd && fd <= INT_MAX && isatty (fd));
       }
 
@@ -516,7 +512,7 @@ and (void)
   while (true)
     {
       value &= term ();
-      if (! (pos < argc && STREQ (argv[pos], "-a")))
+      if (! (pos < argc && streq (argv[pos], "-a")))
         return value;
       advance (false);
     }
@@ -535,7 +531,7 @@ or (void)
   while (true)
     {
       value |= and ();
-      if (! (pos < argc && STREQ (argv[pos], "-o")))
+      if (! (pos < argc && streq (argv[pos], "-o")))
         return value;
       advance (false);
     }
@@ -565,7 +561,7 @@ two_arguments (void)
 {
   bool value;
 
-  if (STREQ (argv[pos], "!"))
+  if (streq (argv[pos], "!"))
     {
       advance (false);
       value = ! one_argument ();
@@ -589,19 +585,19 @@ three_arguments (void)
 
   if (0 <= bop)
     value = binary_operator (false, bop);
-  else if (STREQ (argv[pos], "!"))
+  else if (streq (argv[pos], "!"))
     {
       advance (true);
       value = !two_arguments ();
     }
-  else if (STREQ (argv[pos], "(") && STREQ (argv[pos + 2], ")"))
+  else if (streq (argv[pos], "(") && streq (argv[pos + 2], ")"))
     {
       advance (false);
       value = one_argument ();
       advance (false);
     }
-  else if (STREQ (argv[pos + 1], "-a") || STREQ (argv[pos + 1], "-o")
-           || STREQ (argv[pos + 1], ">") || STREQ (argv[pos + 1], "<"))
+  else if (streq (argv[pos + 1], "-a") || streq (argv[pos + 1], "-o")
+           || streq (argv[pos + 1], ">") || streq (argv[pos + 1], "<"))
     value = expr ();
   else
     test_syntax_error (_("%s: binary operator expected"),
@@ -630,13 +626,13 @@ posixtest (int nargs)
         break;
 
       case 4:
-        if (STREQ (argv[pos], "!"))
+        if (streq (argv[pos], "!"))
           {
             advance (true);
             value = !three_arguments ();
             break;
           }
-        if (STREQ (argv[pos], "(") && STREQ (argv[pos + 3], ")"))
+        if (streq (argv[pos], "(") && streq (argv[pos + 3], ")"))
           {
             advance (false);
             value = two_arguments ();
@@ -673,8 +669,8 @@ Usage: test EXPRESSION\n\
 Exit with the status determined by EXPRESSION.\n\
 \n\
 "), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 An omitted EXPRESSION defaults to false.  Otherwise,\n\
@@ -689,9 +685,17 @@ EXPRESSION is true or false and sets exit status.  It is one of:\n\
 "), stdout);
       fputs (_("\
 \n\
+"), stdout);
+      oputs (_("\
   -n STRING            the length of STRING is nonzero\n\
+"));
+      fputs (_("\
   STRING               equivalent to -n STRING\n\
+"), stdout);
+      oputs (_("\
   -z STRING            the length of STRING is zero\n\
+"));
+      fputs (_("\
   STRING1 = STRING2    the strings are equal\n\
   STRING1 != STRING2   the strings are not equal\n\
   STRING1 > STRING2    STRING1 is greater than STRING2 in the current locale\n\
@@ -699,48 +703,100 @@ EXPRESSION is true or false and sets exit status.  It is one of:\n\
 "), stdout);
       fputs (_("\
 \n\
+"), stdout);
+      oputs (_("\
   INTEGER1 -eq INTEGER2   INTEGER1 is equal to INTEGER2\n\
+"));
+      oputs (_("\
   INTEGER1 -ge INTEGER2   INTEGER1 is greater than or equal to INTEGER2\n\
+"));
+      oputs (_("\
   INTEGER1 -gt INTEGER2   INTEGER1 is greater than INTEGER2\n\
+"));
+      oputs (_("\
   INTEGER1 -le INTEGER2   INTEGER1 is less than or equal to INTEGER2\n\
+"));
+      oputs (_("\
   INTEGER1 -lt INTEGER2   INTEGER1 is less than INTEGER2\n\
+"));
+      oputs (_("\
   INTEGER1 -ne INTEGER2   INTEGER1 is not equal to INTEGER2\n\
-"), stdout);
+"));
       fputs (_("\
 \n\
+"), stdout);
+      oputs (_("\
   FILE1 -ef FILE2   FILE1 and FILE2 have the same device and inode numbers\n\
+"));
+      oputs (_("\
   FILE1 -nt FILE2   FILE1 is newer (modification date) than FILE2\n\
+"));
+      oputs (_("\
   FILE1 -ot FILE2   FILE1 is older than FILE2\n\
-"), stdout);
+"));
       fputs (_("\
 \n\
+"), stdout);
+      oputs (_("\
   -b FILE     FILE exists and is block special\n\
+"));
+      oputs (_("\
   -c FILE     FILE exists and is character special\n\
+"));
+      oputs (_("\
   -d FILE     FILE exists and is a directory\n\
+"));
+      oputs (_("\
   -e FILE     FILE exists\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -f FILE     FILE exists and is a regular file\n\
-  -g FILE     FILE exists and is set-group-ID\n\
+"));
+      oputs (_("\
+  -g FILE     FILE exists and its set-group-ID bit is set\n\
+"));
+      oputs (_("\
   -G FILE     FILE exists and is owned by the effective group ID\n\
+"));
+      oputs (_("\
   -h FILE     FILE exists and is a symbolic link (same as -L)\n\
+"));
+      oputs (_("\
   -k FILE     FILE exists and has its sticky bit set\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -L FILE     FILE exists and is a symbolic link (same as -h)\n\
+"));
+      oputs (_("\
   -N FILE     FILE exists and has been modified since it was last read\n\
+"));
+      oputs (_("\
   -O FILE     FILE exists and is owned by the effective user ID\n\
+"));
+      oputs (_("\
   -p FILE     FILE exists and is a named pipe\n\
+"));
+      oputs (_("\
   -r FILE     FILE exists and the user has read access\n\
+"));
+      oputs (_("\
   -s FILE     FILE exists and has a size greater than zero\n\
-"), stdout);
-      fputs (_("\
+"));
+      oputs (_("\
   -S FILE     FILE exists and is a socket\n\
+"));
+      oputs (_("\
   -t FD       file descriptor FD is opened on a terminal\n\
+"));
+      oputs (_("\
   -u FILE     FILE exists and its set-user-ID bit is set\n\
+"));
+      oputs (_("\
   -w FILE     FILE exists and the user has write access\n\
+"));
+      oputs (_("\
   -x FILE     FILE exists and the user has execute (or search) access\n\
-"), stdout);
+"));
       fputs (_("\
 \n\
 Except for -h and -L, all FILE-related tests dereference symbolic links.\n\
@@ -802,7 +858,7 @@ main (int margc, char **margv)
 
   argv = margv;
 
-  if (LBRACKET)
+  if (test_mode == TEST_LBRACKET)
     {
       /* Recognize --help or --version, but only when invoked in the
          "[" form, when the last argument is not "]".  Use direct
@@ -812,17 +868,17 @@ main (int margc, char **margv)
          and "test --version" to exit silently with status 0.  */
       if (margc == 2)
         {
-          if (STREQ (margv[1], "--help"))
+          if (streq (margv[1], "--help"))
             usage (EXIT_SUCCESS);
 
-          if (STREQ (margv[1], "--version"))
+          if (streq (margv[1], "--version"))
             {
               version_etc (stdout, PROGRAM_NAME, PACKAGE_NAME, Version, AUTHORS,
-                           (char *) nullptr);
+                           (char *) NULL);
               test_main_return (EXIT_SUCCESS);
             }
         }
-      if (margc < 2 || !STREQ (margv[margc - 1], "]"))
+      if (margc < 2 || !streq (margv[margc - 1], "]"))
         test_syntax_error (_("missing %s"), quote ("]"));
 
       --margc;

@@ -1,5 +1,5 @@
 /* mkdir -- make directories
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,12 +39,12 @@
 static struct option const longopts[] =
 {
   {GETOPT_SELINUX_CONTEXT_OPTION_DECL},
-  {"mode", required_argument, nullptr, 'm'},
-  {"parents", no_argument, nullptr, 'p'},
-  {"verbose", no_argument, nullptr, 'v'},
+  {"mode", required_argument, NULL, 'm'},
+  {"parents", no_argument, NULL, 'p'},
+  {"verbose", no_argument, NULL, 'v'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -61,20 +61,31 @@ Create the DIRECTORY(ies), if they do not already exist.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -m, --mode=MODE   set file mode (as in chmod), not a=rwx - umask\n\
-  -p, --parents     no error if existing, make parent directories as needed,\n\
-                    with their file modes unaffected by any -m option\n\
-  -v, --verbose     print a message for each created directory\n\
-"), stdout);
-      fputs (_("\
-  -Z                   set SELinux security context of each created directory\n\
-                         to the default type\n\
-      --context[=CTX]  like -Z, or if CTX is specified then set the SELinux\n\
-                         or SMACK security context to CTX\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -m, --mode=MODE\n\
+         set file mode (as in chmod), not a=rwx - umask\n\
+"));
+      oputs (_("\
+  -p, --parents\n\
+         no error if existing, make parent directories as needed,\n\
+         with their file modes unaffected by any -m option\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         print a message for each created directory\n\
+"));
+      oputs (_("\
+  -Z\n\
+         set SELinux security context of each created directory\n\
+         to the default type\n\
+"));
+      oputs (_("\
+      --context[=CTX]\n\
+         like -Z, or if CTX is specified then set the\n\
+         SELinux or SMACK security context to CTX\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -83,7 +94,7 @@ Create the DIRECTORY(ies), if they do not already exist.\n\
 /* Options passed to subsidiary functions.  */
 struct mkdir_options
 {
-  /* Function to make an ancestor, or nullptr if ancestors should not be
+  /* Function to make an ancestor, or NULL if ancestors should not be
      made.  */
   int (*make_ancestor_function) (char const *, char const *, void *);
 
@@ -190,16 +201,16 @@ process_dir (char *dir, struct savewd *wd, void *options)
 int
 main (int argc, char **argv)
 {
-  char const *specified_mode = nullptr;
+  char const *specified_mode = NULL;
   int optc;
-  char const *scontext = nullptr;
+  char const *scontext = NULL;
   struct mkdir_options options;
 
-  options.make_ancestor_function = nullptr;
+  options.make_ancestor_function = NULL;
   options.mode = S_IRWXUGO;
   options.mode_bits = 0;
-  options.created_directory_format = nullptr;
-  options.set_security_context = nullptr;
+  options.created_directory_format = NULL;
+  options.set_security_context = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -209,7 +220,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "pm:vZ", longopts, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "pm:vZ", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -235,7 +246,7 @@ main (int argc, char **argv)
               else
                 {
                   options.set_security_context = selabel_open (SELABEL_CTX_FILE,
-                                                               nullptr, 0);
+                                                               NULL, 0);
                   if (! options.set_security_context)
                     error (0, errno, _("warning: ignoring --context"));
                 }

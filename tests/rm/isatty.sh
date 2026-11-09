@@ -1,7 +1,7 @@
 #!/bin/sh
 # Make sure 'chown 0 f; rm f' prompts before removing f.
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ ls /dev/stdin >/dev/null 2>&1 \
   || skip_ 'there is no /dev/stdin file'
 
 # Terminate any background processes
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 touch f
 chmod 0 f

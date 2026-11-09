@@ -2,7 +2,7 @@
 # Make sure that 'tail -f' returns immediately if a file doesn't exist
 # while 'tail -F' waits for it to appear.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ touch here || framework_failure_
 { touch unreadable && chmod a-r unreadable; } || framework_failure_
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 # speedup non inotify case
 fastpoll='-s.1 --max-unchanged-stats=1'
@@ -67,7 +67,7 @@ if test "$HAVE_INOTIFY" && test -z "$mode" && is_local_dir_ .; then
     local delay="$1"
 
     > k && > tail.out && > tail.err || framework_failure_
-    tail $fastpoll -F $mode k >tail.out 2>tail.err & pid=$!
+    timeout 60 tail $fastpoll -F $mode k >tail.out 2>tail.err & pid=$!
     sleep $delay
     mv k l
     sleep $delay

@@ -2,7 +2,7 @@
 # Make sure cp --link -f works when the target exists.
 # This failed for 4.0z (due to a bug introduced in that test release).
 
-# Copyright (C) 2000-2025 Free Software Foundation, Inc.
+# Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,5 +27,11 @@ touch dest2 || framework_failure_
 
 cp -f --link src dest || fail=1
 cp -f --symbolic-link src dest2 || fail=1
+
+# --link and --symbolic-link are mutually exclusive.
+returns_ 1 cp -s -l src new 2> err || fail=1
+test -e new && fail=1
+returns_ 1 cp --link --symbolic-link src new 2> err || fail=1
+test -e new && fail=1
 
 Exit $fail

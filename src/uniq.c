@@ -1,5 +1,5 @@
 /* uniq -- remove duplicate lines from a sorted file
-   Copyright (C) 1986-2025 Free Software Foundation, Inc.
+   Copyright (C) 1986-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 
 #include "system.h"
 #include "argmatch.h"
+#include "assure.h"
 #include "linebuffer.h"
 #include "fadvise.h"
 #include "mcel.h"
@@ -85,7 +86,7 @@ enum delimit_method
 
 static char const *const delimit_method_string[] =
 {
-  "none", "prepend", "separate", nullptr
+  "none", "prepend", "separate", NULL
 };
 
 static enum delimit_method const delimit_method_map[] =
@@ -116,7 +117,7 @@ enum grouping_method
 
 static char const *const grouping_method_string[] =
 {
-  "prepend", "append", "separate", "both", nullptr
+  "prepend", "append", "separate", "both", NULL
 };
 
 static enum grouping_method const grouping_method_map[] =
@@ -133,19 +134,19 @@ enum
 
 static struct option const longopts[] =
 {
-  {"count", no_argument, nullptr, 'c'},
-  {"repeated", no_argument, nullptr, 'd'},
-  {"all-repeated", optional_argument, nullptr, 'D'},
-  {"group", optional_argument, nullptr, GROUP_OPTION},
-  {"ignore-case", no_argument, nullptr, 'i'},
-  {"unique", no_argument, nullptr, 'u'},
-  {"skip-fields", required_argument, nullptr, 'f'},
-  {"skip-chars", required_argument, nullptr, 's'},
-  {"check-chars", required_argument, nullptr, 'w'},
-  {"zero-terminated", no_argument, nullptr, 'z'},
+  {"count", no_argument, NULL, 'c'},
+  {"repeated", no_argument, NULL, 'd'},
+  {"all-repeated", optional_argument, NULL, 'D'},
+  {"group", optional_argument, NULL, GROUP_OPTION},
+  {"ignore-case", no_argument, NULL, 'i'},
+  {"unique", no_argument, NULL, 'u'},
+  {"skip-fields", required_argument, NULL, 'f'},
+  {"skip-chars", required_argument, NULL, 's'},
+  {"check-chars", required_argument, NULL, 'w'},
+  {"zero-terminated", no_argument, NULL, 'z'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -168,36 +169,54 @@ With no options, matching lines are merged to the first occurrence.\n\
 
       emit_mandatory_arg_note ();
 
-     fputs (_("\
-  -c, --count           prefix lines by the number of occurrences\n\
-  -d, --repeated        only print duplicate lines, one for each group\n\
-"), stdout);
-     fputs (_("\
-  -D                    print all duplicate lines\n\
-      --all-repeated[=METHOD]  like -D, but allow separating groups\n\
-                                 with an empty line;\n\
-                                 METHOD={none(default),prepend,separate}\n\
-"), stdout);
-     fputs (_("\
-  -f, --skip-fields=N   avoid comparing the first N fields\n\
-"), stdout);
-     fputs (_("\
-      --group[=METHOD]  show all items, separating groups with an empty line;\n\
-                          METHOD={separate(default),prepend,append,both}\n\
-"), stdout);
-     fputs (_("\
-  -i, --ignore-case     ignore differences in case when comparing\n\
-  -s, --skip-chars=N    avoid comparing the first N characters\n\
-  -u, --unique          only print unique lines\n\
-"), stdout);
-      fputs (_("\
-  -z, --zero-terminated     line delimiter is NUL, not newline\n\
-"), stdout);
-     fputs (_("\
-  -w, --check-chars=N   compare no more than N characters in lines\n\
-"), stdout);
-     fputs (HELP_OPTION_DESCRIPTION, stdout);
-     fputs (VERSION_OPTION_DESCRIPTION, stdout);
+     oputs (_("\
+  -c, --count\n\
+         prefix lines by the number of occurrences\n\
+"));
+     oputs (_("\
+  -d, --repeated\n\
+         only print duplicate lines, one for each group\n\
+"));
+     oputs (_("\
+  -D\n\
+         print all duplicate lines\n\
+"));
+     oputs (_("\
+      --all-repeated[=METHOD]\n\
+         like -D, but allow separating groups with an empty line;\n\
+         METHOD={none(default),prepend,separate}\n\
+"));
+     oputs (_("\
+  -f, --skip-fields=N\n\
+         avoid comparing the first N fields\n\
+"));
+     oputs (_("\
+      --group[=METHOD]\n\
+         show all items, separating groups with an empty line;\n\
+         METHOD={separate(default),prepend,append,both}\n\
+"));
+     oputs (_("\
+  -i, --ignore-case\n\
+         ignore differences in case when comparing\n\
+"));
+     oputs (_("\
+  -s, --skip-chars=N\n\
+         avoid comparing the first N characters\n\
+"));
+     oputs (_("\
+  -u, --unique\n\
+         only print unique lines\n\
+"));
+     oputs (_("\
+  -z, --zero-terminated\n\
+         line delimiter is NUL, not newline\n\
+"));
+     oputs (_("\
+  -w, --check-chars=N\n\
+         compare no more than N characters in lines\n\
+"));
+     oputs (HELP_OPTION_DESCRIPTION);
+     oputs (VERSION_OPTION_DESCRIPTION);
      fputs (_("\
 \n\
 A field is a run of blanks (usually spaces and/or TABs), then non-blank\n\
@@ -227,16 +246,16 @@ static idx_t
 size_opt (char const *opt, char const *msgid)
 {
   intmax_t size;
-  if (LONGINT_OVERFLOW < xstrtoimax (opt, nullptr, 10, &size, "")
+  if (LONGINT_OVERFLOW < xstrtoimax (opt, NULL, 10, &size, "")
       || size < 0)
-    error (EXIT_FAILURE, 0, "%s: %s", opt, _(msgid));
+    error (EXIT_FAILURE, 0, "%s: %s", quote (opt), _(msgid));
   return MIN (size, IDX_MAX);
 }
 
 static bool
 newline_or_blank (mcel_t g)
 {
-  return g.ch == '\n' || c32isblank (g.ch);
+  return g.ch == '\n' || c32issep (g.ch);
 }
 
 /* Given a linebuffer LINE,
@@ -267,8 +286,8 @@ find_field (struct linebuffer const *line, idx_t *plen)
   else
     {
       char *ep = lp;
-      for (idx_t i = check_chars; 0 < i && lp < lim; i--)
-        ep += mcel_scan (lp, lim).len;
+      for (idx_t i = check_chars; 0 < i && ep < lim; i--)
+        ep += mcel_scan (ep, lim).len;
       len = ep - lp;
     }
 
@@ -306,7 +325,23 @@ writeline (struct linebuffer const *line,
     return;
 
   if (count_occurrences)
-    printf ("%7jd ", linecount + 1);
+    {
+      char buf[7 + INT_BUFSIZE_BOUND (intmax_t)];
+      char *end = buf + sizeof buf;
+      char *p = end;
+      *--p = ' ';
+      intmax_t i = linecount + 1;
+      affirm (0 < i);
+      do
+        *--p = '0' + i % 10;
+      while ((i /= 10));
+      /* 7 characters, padded with spaces if LINECOUNT + 1 is too small.  */
+      while (end - p < 8)
+        *--p = ' ';
+      const idx_t nbytes = end - p;
+      if (fwrite (p, sizeof (char), nbytes, stdout) != nbytes)
+        write_error ();
+    }
 
   if (fwrite (line->buffer, sizeof (char), line->length, stdout)
       != line->length)
@@ -322,9 +357,9 @@ check_file (char const *infile, char const *outfile, char delimiter)
   struct linebuffer lb1, lb2;
   struct linebuffer *thisline, *prevline;
 
-  if (! (STREQ (infile, "-") || freopen (infile, "r", stdin)))
+  if (! (streq (infile, "-") || freopen (infile, "r", stdin)))
     error (EXIT_FAILURE, errno, "%s", quotef (infile));
-  if (! (STREQ (outfile, "-") || freopen (outfile, "w", stdout)))
+  if (! (streq (outfile, "-") || freopen (outfile, "w", stdout)))
     error (EXIT_FAILURE, errno, "%s", quotef (outfile));
 
   fadvise (stdin, FADVISE_SEQUENTIAL);
@@ -352,12 +387,12 @@ check_file (char const *infile, char const *outfile, char delimiter)
   */
   if (output_unique && output_first_repeated && !count_occurrences)
     {
-      char *prevfield = nullptr;
+      char *prevfield = NULL;
       idx_t prevlen;
       bool first_group_printed = false;
 
       while (!feof (stdin)
-             && readlinebuffer_delim (thisline, stdin, delimiter) != 0)
+             && readlinebuffer_delim (thisline, stdin, delimiter))
         {
           idx_t thislen;
           char *thisfield = find_field (thisline, &thislen);
@@ -388,7 +423,7 @@ check_file (char const *infile, char const *outfile, char delimiter)
     }
   else
     {
-      if (readlinebuffer_delim (prevline, stdin, delimiter) == 0)
+      if (!readlinebuffer_delim (prevline, stdin, delimiter))
         goto closefiles;
 
       idx_t prevlen;
@@ -398,7 +433,7 @@ check_file (char const *infile, char const *outfile, char delimiter)
 
       while (!feof (stdin))
         {
-          if (readlinebuffer_delim (thisline, stdin, delimiter) == 0)
+          if (!readlinebuffer_delim (thisline, stdin, delimiter))
             {
               if (ferror (stdin))
                 goto closefiles;
@@ -467,7 +502,7 @@ int
 main (int argc, char **argv)
 {
   int optc = 0;
-  bool posixly_correct = (getenv ("POSIXLY_CORRECT") != nullptr);
+  bool posixly_correct = (getenv ("POSIXLY_CORRECT") != NULL);
   enum Skip_field_option_type skip_field_option_type = SFO_NONE;
   int nfiles = 0;
   char const *file[2];
@@ -493,7 +528,7 @@ main (int argc, char **argv)
           || (posixly_correct && nfiles != 0)
           || ((optc = getopt_long (argc, argv,
                                    "-0123456789Dcdf:is:uw:z",
-                                   longopts, nullptr))
+                                   longopts, NULL))
               == -1))
         {
           if (argc <= optind)
@@ -512,7 +547,7 @@ main (int argc, char **argv)
             intmax_t size;
             if (optarg[0] == '+'
                 && ! strict_posix2 ()
-                && (xstrtoimax (optarg, nullptr, 10, &size, "")
+                && (xstrtoimax (optarg, NULL, 10, &size, "")
                     <= LONGINT_OVERFLOW))
               skip_chars = MIN (size, IDX_MAX);
             else if (nfiles == 2)
@@ -559,7 +594,7 @@ main (int argc, char **argv)
         case 'D':
           output_unique = false;
           output_later_repeated = true;
-          if (optarg == nullptr)
+          if (optarg == NULL)
             delimit_groups = DM_NONE;
           else
             delimit_groups = XARGMATCH ("--all-repeated", optarg,
@@ -569,7 +604,7 @@ main (int argc, char **argv)
           break;
 
         case GROUP_OPTION:
-          if (optarg == nullptr)
+          if (optarg == NULL)
             grouping = GM_SEPARATE;
           else
             grouping = XARGMATCH ("--group", optarg,

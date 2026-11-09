@@ -2,7 +2,7 @@
 # Make sure that 'tail -n0 -f' and 'tail -c0 -f' sleep
 # rather than doing what amounted to a busy-wait.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ tail -c0 unreadable || fail=1
 tail -n0 unreadable || fail=1
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 for mode in '' '---disable-inotify'; do
   for file in empty nonempty; do

@@ -1,5 +1,5 @@
 /* set-fields.c -- common functions for parsing field list
-   Copyright (C) 2015-2025 Free Software Foundation, Inc.
+   Copyright (C) 2015-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #include <config.h>
 
 #include "system.h"
-#include <ctype.h>
 #include "c-ctype.h"
 #include "quote.h"
 #include "set-fields.h"
@@ -73,7 +72,7 @@ complement_rp (void)
   struct field_range_pair *c = frp;
   idx_t n = n_frp;
 
-  frp = nullptr;
+  frp = NULL;
   n_frp = 0;
   n_frp_allocated = 0;
 
@@ -147,7 +146,7 @@ set_fields (char const *fieldstr, unsigned int options)
   /* Collect and store in RP the range end points. */
 
   /* Special case: '--field=-' means all fields, emulate '--field=1-' . */
-  if ((options & SETFLD_ALLOW_DASH) && STREQ (fieldstr,"-"))
+  if ((options & SETFLD_ALLOW_DASH) && streq (fieldstr,"-"))
     {
       value = 1;
       lhs_specified = true;
@@ -304,6 +303,6 @@ set_fields (char const *fieldstr, unsigned int options)
      Also add a sentinel at the end of RP, to avoid out of bounds access
      and for performance reasons.  */
   ++n_frp;
-  frp = xrealloc (frp, n_frp * sizeof (struct field_range_pair));
+  frp = xreallocarray (frp, n_frp, sizeof (struct field_range_pair));
   frp[n_frp - 1].lo = frp[n_frp - 1].hi = UINTMAX_MAX;
 }

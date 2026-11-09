@@ -2,7 +2,7 @@
 # 'md5sum' tests for generation and checking of
 # BSD traditional and alternate formats (md5 [-r])
 
-# Copyright (C) 2011-2025 Free Software Foundation, Inc.
+# Copyright (C) 2011-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,9 +32,13 @@ for i in 'a' ' b' '*c' 'dd' ' '; do
 done
 sed 's/  / /' check.md5sum > check.md5
 
-# Note only a single format is supported per run
+# Note only a single untagged format is supported per checksum file.
 md5sum --strict -c check.md5sum || fail=1
 md5sum --strict -c check.md5 || fail=1
+
+# The format of one checksum file must not affect parsing of the next.
+md5sum --strict -c check.md5sum check.md5 || fail=1
+md5sum --strict -c check.md5 check.md5sum || fail=1
 
 # Ensure we don't trigger BSD reversed format with GPG headers etc.
 { echo '____not_all_hex_so_no_match_____ blah';
@@ -82,8 +86,8 @@ if echo '' > 'backslash\is\not\dir\sep'; then
     md5sum --tag "$i" >> check.md5 || fail=1
   done
   md5sum --strict -c check.md5 > out || fail=1
-  printf '%s: OK\n' '\a\\b' '\a\\' '\\\a' '\a\nb' "a${t}b" > exp ||
-    framework_failure_
+  printf '%s: OK\n' "'a\\b'" "'a\\'" "'\\a'" \
+                    "'a'\$'\\n''b'" "'a'\$'\\t''b'" > exp || framework_failure_
   compare exp out || fail=1
 
 

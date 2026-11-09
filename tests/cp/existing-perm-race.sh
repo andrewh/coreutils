@@ -1,7 +1,7 @@
 #!/bin/sh
 # Make sure cp -p isn't too generous with existing file permissions.
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ chgrp $g2 fifo-copy &&
 chmod g+r fifo-copy || framework-failure
 
 # Terminate any background cp process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 # Copy a fifo's contents.  That way, we can examine the
 # destination permissions before they're finalized.

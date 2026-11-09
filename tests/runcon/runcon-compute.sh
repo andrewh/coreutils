@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that runcon -c uses absolute file names
 
-# Copyright (C) 2022-2025 Free Software Foundation, Inc.
+# Copyright (C) 2022-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ runcon
+
+runcon --version || fail=1
 
 # Create an executable that's sure to fail
 printf '%s\n' '#!/bin/sh' 'exit 1' >> 'true' || framework_failure_

@@ -1,5 +1,5 @@
 /* stat.c -- display file or file system status
-   Copyright (C) 2001-2025 Free Software Foundation, Inc.
+   Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,10 +55,10 @@
 #include <selinux/selinux.h>
 #include <getopt.h>
 
+#include "argmatch.h"  /* argmatch($QUOTING_STYLE).  */
 #include "system.h"
 
 #include "areadlink.h"
-#include "argmatch.h"
 #include "c-ctype.h"
 #include "file-type.h"
 #include "filemode.h"
@@ -179,10 +179,10 @@ static char const digits[] = "0123456789";
 static char const printf_flags[] = "'-+ #0I";
 
 /* Formats for the --terse option.  */
-static char const fmt_terse_fs[] = "%n %i %l %t %s %S %b %f %a %c %d\n";
-static char const fmt_terse_regular[] = "%n %s %b %f %u %g %D %i %h %t %T"
+static char const fmt_terse_fs[] = "%Qn %i %l %t %s %S %b %f %a %c %d\n";
+static char const fmt_terse_regular[] = "%Qn %s %b %f %u %g %D %i %h %t %T"
                                         " %X %Y %Z %W %o\n";
-static char const fmt_terse_selinux[] = "%n %s %b %f %u %g %D %i %h %t %T"
+static char const fmt_terse_selinux[] = "%Qn %s %b %f %u %g %D %i %h %t %T"
                                         " %X %Y %Z %W %o %C\n";
 
 #define PROGRAM_NAME "stat"
@@ -203,7 +203,7 @@ enum cached_mode
 
 static char const *const cached_args[] =
 {
-  "default", "never", "always", nullptr
+  "default", "never", "always", NULL
 };
 
 static enum cached_mode const cached_modes[] =
@@ -213,15 +213,15 @@ static enum cached_mode const cached_modes[] =
 
 static struct option const long_options[] =
 {
-  {"dereference", no_argument, nullptr, 'L'},
-  {"file-system", no_argument, nullptr, 'f'},
-  {"format", required_argument, nullptr, 'c'},
-  {"printf", required_argument, nullptr, PRINTF_OPTION},
-  {"terse", no_argument, nullptr, 't'},
-  {"cached", required_argument, nullptr, 0},
+  {"dereference", no_argument, NULL, 'L'},
+  {"file-system", no_argument, NULL, 'f'},
+  {"format", required_argument, NULL, 'c'},
+  {"printf", required_argument, NULL, PRINTF_OPTION},
+  {"terse", no_argument, NULL, 't'},
+  {"cached", required_argument, NULL, 0},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Whether to follow symbolic links;  True for --dereference (-L).  */
@@ -371,6 +371,8 @@ human_fstype (STRUCT_STATVFS const *statfsbuf)
       return "ext2";
     case S_MAGIC_F2FS: /* 0xF2F52010 local */
       return "f2fs";
+    case S_MAGIC_FAIL_FS: /* 0x4641494C local */
+      return "failfs";
     case S_MAGIC_FAT: /* 0x4006 local */
       return "fat";
     case S_MAGIC_FHGFS: /* 0x19830326 remote */
@@ -385,6 +387,8 @@ human_fstype (STRUCT_STATVFS const *statfsbuf)
       return "gfs/gfs2";
     case S_MAGIC_GPFS: /* 0x47504653 remote */
       return "gpfs";
+    case S_MAGIC_GUEST_MEMFD: /* 0x474D454D remote */
+      return "guest-memfd";
     case S_MAGIC_HFS: /* 0x4244 local */
       return "hfs";
     case S_MAGIC_HFS_PLUS: /* 0x482B local */
@@ -449,6 +453,8 @@ human_fstype (STRUCT_STATVFS const *statfsbuf)
       return "nsfs";
     case S_MAGIC_NTFS: /* 0x5346544E local */
       return "ntfs";
+    case S_MAGIC_NULL_FS: /* 0x4E554C4C local */
+      return "nullfs";
     case S_MAGIC_OPENPROM: /* 0x9FA1 local */
       return "openprom";
     case S_MAGIC_OCFS2: /* 0x7461636F remote */
@@ -464,8 +470,8 @@ human_fstype (STRUCT_STATVFS const *statfsbuf)
       return "pidfs";
     case S_MAGIC_PIPEFS: /* 0x50495045 remote */
       /* FIXME: change syntax or add an optional attribute like "inotify:no".
-         pipefs and prlfs are labeled as "remote" so that tail always polls,
-         but these aren't really remote file system types.  */
+         pipefs is labeled as "remote" so that tail always polls,
+         but it isn't really remote file system type.  */
       return "pipefs";
     case S_MAGIC_PPC_CMM: /* 0xC7571590 local */
       return "ppc-cmm-fs";
@@ -740,7 +746,7 @@ out_epoch_sec (char *pformat, size_t prefix_len,
 
       if (c_isdigit (dot[1]))
         {
-          long int lprec = strtol (dot + 1, nullptr, 10);
+          long int lprec = strtol (dot + 1, NULL, 10);
           precision = (lprec <= INT_MAX ? lprec : INT_MAX);
         }
       else
@@ -760,7 +766,7 @@ out_epoch_sec (char *pformat, size_t prefix_len,
             --p;
           while (c_isdigit (p[-1]));
 
-          long int lwidth = strtol (p, nullptr, 10);
+          long int lwidth = strtol (p, NULL, 10);
           width = (lwidth <= INT_MAX ? lwidth : INT_MAX);
           if (1 < width)
             {
@@ -843,7 +849,7 @@ out_file_context (char *pformat, size_t prefix_len, char const *filename)
     {
       error (0, errno, _("failed to get security context of %s"),
              quoteaf (filename));
-      scontext = nullptr;
+      scontext = NULL;
       fail = true;
     }
   strcpy (pformat + prefix_len, "s");
@@ -851,6 +857,19 @@ out_file_context (char *pformat, size_t prefix_len, char const *filename)
   if (scontext)
     freecon (scontext);
   return fail;
+}
+
+/* Set the quoting style once it is needed.  */
+static void
+initialize_quoting_style (void)
+{
+  static bool initialized;
+  if (!initialized)
+    {
+      initialized = true;
+      int qs = getenv_quoting_style ();
+      set_quoting_style (NULL, 0 <= qs ? qs : shell_escape_quoting_style);
+    }
 }
 
 /* Print statfs info.  Return zero upon success, nonzero upon failure.  */
@@ -866,6 +885,11 @@ print_statfs (char *pformat, size_t prefix_len, MAYBE_UNUSED char mod, char m,
   switch (m)
     {
     case 'n':
+      if (mod == 'Q')
+        {
+          initialize_quoting_style ();
+          filename = quoteN (filename);
+        }
       out_string (pformat, prefix_len, filename);
       break;
 
@@ -943,12 +967,12 @@ print_statfs (char *pformat, size_t prefix_len, MAYBE_UNUSED char mod, char m,
 
 /* Return any bind mounted source for a path.
    The caller should not free the returned buffer.
-   Return nullptr if no bind mount found.  */
+   Return NULL if no bind mount found.  */
 NODISCARD
 static char const *
 find_bind_mount (char const * name)
 {
-  char const * bind_mount = nullptr;
+  char const * bind_mount = NULL;
 
   static struct mount_entry *mount_list;
   static bool tried_mount_list = false;
@@ -961,13 +985,12 @@ find_bind_mount (char const * name)
 
   struct stat name_stats;
   if (stat (name, &name_stats) != 0)
-    return nullptr;
+    return NULL;
 
-  struct mount_entry *me;
-  for (me = mount_list; me; me = me->me_next)
+  for (struct mount_entry *me = mount_list; me; me = me->me_next)
     {
       if (me->me_dummy && me->me_devname[0] == '/'
-          && STREQ (me->me_mountdir, name))
+          && streq (me->me_mountdir, name))
         {
           struct stat dev_stats;
 
@@ -990,8 +1013,8 @@ out_mount_point (char const *filename, char *pformat, size_t prefix_len,
                  const struct stat *statp)
 {
 
-  char const *np = "?", *bp = nullptr;
-  char *mp = nullptr;
+  char const *np = "?", *bp = NULL;
+  char *mp = NULL;
   bool fail = true;
 
   /* Look for bind mounts first.  Note we output the immediate alias,
@@ -1042,32 +1065,6 @@ neg_to_zero (struct timespec ts)
   struct timespec z = {0};
   return z;
 }
-
-/* Set the quoting style default if the environment variable
-   QUOTING_STYLE is set.  */
-
-static void
-getenv_quoting_style (void)
-{
-  char const *q_style = getenv ("QUOTING_STYLE");
-  if (q_style)
-    {
-      int i = ARGMATCH (q_style, quoting_style_args, quoting_style_vals);
-      if (0 <= i)
-        set_quoting_style (nullptr, quoting_style_vals[i]);
-      else
-        {
-          set_quoting_style (nullptr, shell_escape_always_quoting_style);
-          error (0, 0, _("ignoring invalid value of environment "
-                         "variable QUOTING_STYLE: %s"), quote (q_style));
-        }
-    }
-  else
-    set_quoting_style (nullptr, shell_escape_always_quoting_style);
-}
-
-/* Equivalent to quotearg(), but explicit to avoid syntax checks.  */
-#define quoteN(x) quotearg_style (get_quoting_style (nullptr), x)
 
 /* Output a single-character \ escape.  */
 
@@ -1145,8 +1142,7 @@ print_it (char const *format, int fd, char const *filename,
     };
   size_t n_alloc = strlen (format) + MAX_ADDITIONAL_BYTES + 1;
   char *dest = xmalloc (n_alloc);
-  char const *b;
-  for (b = format; *b; b++)
+  for (char const *b = format; *b; b++)
     {
       switch (*b)
         {
@@ -1175,10 +1171,13 @@ print_it (char const *format, int fd, char const *filename,
                 break;
               case 'H':
               case 'L':
+              case 'Q':
                 mod_char = fmt_char;
                 fmt_char = *(b + 1);
-                if (print_func == print_stat
-                    && (fmt_char == 'd' || fmt_char == 'r'))
+                if ((mod_char == 'Q' && fmt_char == 'n')
+                    || (print_func == print_stat
+                        && (mod_char == 'H' || mod_char == 'L')
+                        && (fmt_char == 'd' || fmt_char == 'r')))
                   {
                     b++;
                   }
@@ -1260,7 +1259,7 @@ do_statfs (char const *filename, char const *format)
 {
   STRUCT_STATVFS statfsbuf;
 
-  if (STREQ (filename, "-"))
+  if (streq (filename, "-"))
     {
       error (0, 0, _("using %s to denote standard input does not work"
                      " in file system mode"), quoteaf (filename));
@@ -1347,9 +1346,8 @@ static unsigned int
 format_to_mask (char const *format)
 {
   unsigned int mask = 0;
-  char const *b;
 
-  for (b = format; *b; b++)
+  for (char const *b = format; *b; b++)
     {
       if (*b != '%')
         continue;
@@ -1367,7 +1365,7 @@ NODISCARD
 static bool
 do_stat (char const *filename, char const *format, char const *format2)
 {
-  int fd = STREQ (filename, "-") ? 0 : AT_FDCWD;
+  int fd = streq (filename, "-") ? 0 : AT_FDCWD;
   int flags = 0;
   struct stat st;
   struct statx stx = {0};
@@ -1456,7 +1454,7 @@ static bool
 do_stat (char const *filename, char const *format,
          char const *format2)
 {
-  int fd = STREQ (filename, "-") ? 0 : -1;
+  int fd = streq (filename, "-") ? 0 : -1;
   struct stat statbuf;
   struct print_args pa;
   pa.st = &statbuf;
@@ -1513,14 +1511,20 @@ print_stat (char *pformat, size_t prefix_len, char mod, char m,
   switch (m)
     {
     case 'n':
+      if (mod == 'Q')
+        {
+          initialize_quoting_style ();
+          filename = quoteN (filename);
+        }
       out_string (pformat, prefix_len, filename);
       break;
     case 'N':
+      initialize_quoting_style ();
       out_string (pformat, prefix_len, quoteN (filename));
       if (S_ISLNK (statbuf->st_mode))
         {
           char *linkname = areadlink_with_size (filename, statbuf->st_size);
-          if (linkname == nullptr)
+          if (linkname == NULL)
             {
               error (0, errno, _("cannot read symbolic link %s"),
                      quoteaf (filename));
@@ -1669,7 +1673,7 @@ default_format (bool fs, bool terse, bool device)
         {
           /* TRANSLATORS: This string uses format specifiers from
              'stat --help' with --file-system, and NOT from printf.  */
-          format = xstrdup (_("  File: \"%n\"\n"
+          format = xstrdup (_("  File: %Qn\n"
                               "    ID: %-8i Namelen: %-7l Type: %T\n"
                               "Block size: %-10s Fundamental block size: %S\n"
                               "Blocks: Total: %-10b Free: %-10f Available: %a\n"
@@ -1760,24 +1764,36 @@ Display file or file system status.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -L, --dereference     follow links\n\
-  -f, --file-system     display file system status instead of file status\n\
-"), stdout);
-      fputs (_("\
-      --cached=MODE     specify how to use cached attributes;\n\
-                          useful on remote file systems. See MODE below\n\
-"), stdout);
-      fputs (_("\
-  -c  --format=FORMAT   use the specified FORMAT instead of the default;\n\
-                          output a newline after each use of FORMAT\n\
-      --printf=FORMAT   like --format, but interpret backslash escapes,\n\
-                          and do not output a mandatory trailing newline;\n\
-                          if you want a newline, include \\n in FORMAT\n\
-  -t, --terse           print the information in terse form\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -L, --dereference\n\
+         follow links\n\
+"));
+      oputs (_("\
+  -f, --file-system\n\
+         display file system status instead of file status\n\
+"));
+      oputs (_("\
+      --cached=MODE\n\
+         specify how to use cached attributes;\n\
+         useful on remote file systems. See MODE below\n\
+"));
+      oputs (_("\
+  -c, --format=FORMAT\n\
+         use the specified FORMAT instead of the default;\n\
+         output a newline after each use of FORMAT\n\
+"));
+      oputs (_("\
+      --printf=FORMAT\n\
+         like --format, but interpret backslash escapes,\n\
+         and do not output a mandatory trailing newline;\n\
+         if you want a newline, include \\n in FORMAT\n\
+"));
+      oputs (_("\
+  -t, --terse\n\
+         print the information in terse form\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
 
       fputs (_("\n\
 The MODE argument of --cached can be: always, never, or default.\n\
@@ -1810,6 +1826,7 @@ The valid format sequences for files (without --file-system):\n\
   %i   inode number\n\
   %m   mount point\n\
   %n   file name\n\
+  %Qn  quoted file name\n\
   %N   quoted file name with dereference if symbolic link\n\
   %o   optimal I/O transfer size hint\n\
   %s   total size, in bytes\n\
@@ -1847,6 +1864,7 @@ Valid format sequences for file systems:\n\
   %i   file system ID in hex\n\
   %l   maximum length of filenames\n\
   %n   file name\n\
+  %Qn  quoted file name\n\
   %s   block size (for faster transfers)\n\
   %S   fundamental block size (for block counts)\n\
   %t   file system type in hex\n\
@@ -1881,7 +1899,7 @@ main (int argc, char *argv[])
   int c;
   bool fs = false;
   bool terse = false;
-  char *format = nullptr;
+  char *format = NULL;
   char *format2;
   bool ok = true;
 
@@ -1897,7 +1915,7 @@ main (int argc, char *argv[])
 
   atexit (close_stdout);
 
-  while ((c = getopt_long (argc, argv, "c:fLt", long_options, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "c:fLt", long_options, NULL)) != -1)
     {
       switch (c)
         {
@@ -1959,8 +1977,6 @@ main (int argc, char *argv[])
 
   if (format)
     {
-      if (strstr (format, "%N"))
-        getenv_quoting_style ();
       format2 = format;
     }
   else

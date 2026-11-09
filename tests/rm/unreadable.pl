@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "rm" and unreadable directories.
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use strict;
+
+my $limits = getlimits ();
 
 (my $program_name = $0) =~ s|.*/||;
 
@@ -38,7 +40,7 @@ my @Tests =
      ['unreadable-2', '-rf', $d,
       {EXIT => $uid == 0 ? 0 : 1},
       {ERR => $uid == 0 ? ''
-                        : "$prog: cannot remove '$d': Permission denied\n"},
+                        : "$prog: cannot remove '$d': $limits->{EACCES}\n"},
       {PRE => sub { (mkdir $d,0700 and mkdir "$d/x",0700 and chmod 0100,$d)
                     or die "$d: $!\n"}} ],
     );

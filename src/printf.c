@@ -1,5 +1,5 @@
 /* printf - format and print data
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -59,8 +59,8 @@ Usage: %s FORMAT [ARGUMENT]...\n\
 Print ARGUMENT(s) according to FORMAT, or execute according to OPTION:\n\
 \n\
 "), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 FORMAT controls the output as in C printf.  Interpreted sequences are:\n\
@@ -69,7 +69,7 @@ FORMAT controls the output as in C printf.  Interpreted sequences are:\n\
 "), stdout);
       fputs (_("\
   \\\\      backslash\n\
-  \\a      alert (BEL)\n\
+  \\a      alert (bell)\n\
   \\b      backspace\n\
   \\c      produce no further output\n\
   \\e      escape\n\
@@ -86,14 +86,39 @@ FORMAT controls the output as in C printf.  Interpreted sequences are:\n\
   \\UHHHHHHHH  Unicode character with hex value HHHHHHHH (8 digits)\n\
 "), stdout);
       fputs (_("\
+\n\
   %%      a single %\n\
   %b      ARGUMENT as a string with '\\' escapes interpreted,\n\
           except that octal escapes should have a leading 0 like \\0NNN\n\
   %q      ARGUMENT is printed in a format that can be reused as shell input,\n\
           escaping non-printable characters with the POSIX $'' syntax\
 \n\n\
-and all C format specifications ending with one of diouxXfeEgGcs, with\n\
-ARGUMENTs converted to proper type first.  Variable widths are handled.\n\
+and all C printf(3) format specifications ending with one of diouxXfaAeEgGcs,\n\
+with ARGUMENTs converted to proper type first.\n\
+"), stdout);
+      fputs (_("\
+FORMAT is reused to convert all specified arguments.\n\
+"), stdout);
+      fputs (_("\
+The following table shows supported conversion specifiers,\n\
+with examples including usage of width, precision, and flags.\n\
+\n\
+  CONVERSION  Shell format example        Output\n\
+  %s          '[%10s]' 'left pad'         [  left pad]\n\
+  %s          '[%-10s]' 'right pad'       [right pad ]\n\
+  %c %s       '%c %.3s' un unibyte        u uni\n\
+\n\
+  %d %i       \"%'d ;%04i\" 1234 '-1'       1,234 ;-001\n\
+  %o          '%#o' $((2#110100100))      0644\n\
+  %u          '%u' 0xFFFFFFFF             4294967295\n\
+  %x          '0x%08x' 11259375           0x00abcdef\n\
+\n\
+  %a %f       '%1$a %1$f' 0.0009765625    0x8p-13 0.000977\n\
+  %e %f       '%1$e %1$f' 123.456789      1.234568e+02 123.456789\n\
+  %g          '%1$g %1$.2g' 1.2345678e3   1234.57 1.2e+03\n\
+\n\
+  %b          '%bfoo' 'bar\\cbaz' qux      bar\n\
+  %q          '%q ' 'a' \\;b $'c\\n'        a ';b' 'c'$'\\n'\n\
 "), stdout);
       printf (USAGE_BUILTIN_WARNING, PROGRAM_NAME);
       emit_ancillary_info (PROGRAM_NAME);
@@ -153,7 +178,7 @@ FUNC_NAME (char const *s)						 \
          printf is ignoring those characters.  If POSIXLY_CORRECT *is*	 \
          set, then don't give the warning.  */				 \
       if (*++s != 0 && !posixly_correct)				 \
-        error (0, 0, _(cfcc_msg), s);					 \
+        error (0, 0, _(cfcc_msg), quote (s));				 \
     }									 \
   else									 \
     {									 \
@@ -669,7 +694,7 @@ print_formatted (char const *format, int argc, char **argv)
           print_direc (direc, *ac.f,
                        have_field_width, field_width,
                        have_precision, precision,
-                       ac.curr_arg < argc ? argv[ac.curr_arg] : nullptr);
+                       ac.curr_arg < argc ? argv[ac.curr_arg] : NULL);
 
           break;
 
@@ -700,28 +725,26 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  exit_status = EXIT_SUCCESS;
-
-  posixly_correct = (getenv ("POSIXLY_CORRECT") != nullptr);
+  posixly_correct = (getenv ("POSIXLY_CORRECT") != NULL);
 
   /* We directly parse options, rather than use parse_long_options, in
      order to avoid accepting abbreviations.  */
   if (argc == 2)
     {
-      if (STREQ (argv[1], "--help"))
+      if (streq (argv[1], "--help"))
         usage (EXIT_SUCCESS);
 
-      if (STREQ (argv[1], "--version"))
+      if (streq (argv[1], "--version"))
         {
           version_etc (stdout, PROGRAM_NAME, PACKAGE_NAME, Version, AUTHORS,
-                       (char *) nullptr);
+                       (char *) NULL);
           return EXIT_SUCCESS;
         }
     }
 
   /* The above handles --help and --version.
      Since there is no other invocation of getopt, handle '--' here.  */
-  if (1 < argc && STREQ (argv[1], "--"))
+  if (1 < argc && streq (argv[1], "--"))
     {
       --argc;
       ++argv;

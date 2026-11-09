@@ -1,7 +1,7 @@
 #!/bin/sh
 # Validate yes buffer handling
 
-# Copyright (C) 2015-2025 Free Software Foundation, Inc.
+# Copyright (C) 2015-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ yes
+getlimits_
+uses_strace_
 
 # Check basic operation
 test "$(yes | head -n1)" = 'y' || fail=1
@@ -47,13 +49,40 @@ fi
 if test -w /dev/full && test -c /dev/full; then
   # The single output diagnostic expected,
   # (without the possibly varying :strerror(ENOSPC) suffix).
-  printf '%s\n' "yes: standard output" > exp
+  printf '%s\n' "yes: standard output: $ENOSPC" > exp
 
   for size in 1 16384; do
-    returns_ 1 yes "$(printf %${size}s '')" >/dev/full 2>errt || fail=1
-    sed 's/\(yes:.*\):.*/\1/' errt > err
+    returns_ 1 yes "$(printf %${size}s '')" >/dev/full 2>err || fail=1
     compare exp err || fail=1
   done
+fi
+
+# Check the non pipe output case, since that is different with splice
+if timeout 10 true; then
+  timeout .1 yes >/dev/null
+  test $? = 124 || fail=1
+fi
+
+# Ensure we fallback to write() if there is an issue with (async) zero-copy
+zc_syscalls='io_uring_setup io_uring_enter io_uring_register memfd_create
+             sendfile splice tee vmsplice'
+syscalls=$(
+  for s in $zc_syscalls; do
+    strace -qe trace="$s" true >/dev/null 2>&1 && echo "$s"
+  done | paste -s -d,)
+
+no_zero_copy() {
+  strace -f -o /dev/null -e inject=${syscalls}:error=ENOSYS "$@"
+}
+if no_zero_copy true; then
+  test "$(no_zero_copy yes | head -n2 | paste -s -d '')" = 'yy' || fail=1
+fi
+# Ensure we fallback to write() if there is an issue with pipe2()
+# For example if we don't have enough file descriptors available.
+no_pipe() { strace -f -o /dev/null -e inject=pipe,pipe2:error=EMFILE "$@"; }
+if no_pipe true; then
+  no_pipe timeout .1 yes >/dev/null
+  test $? = 124 || fail=1
 fi
 
 Exit $fail

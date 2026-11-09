@@ -1,7 +1,7 @@
 #!/bin/sh
 # Verify behavior of ls --zero.
 
-# Copyright 2021-2025 Free Software Foundation, Inc.
+# Copyright 2021-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,12 +29,11 @@ disallowed_options='-l --dired'  # dired only enabled with -l
 returns_ 2 ls $disallowed_options --zero dir || fail=1
 
 disabled_options='--color=always -x -m -C -Q -q'
+newline='n
+l'
+touch dir/'com,ma' "dir/$newline" || framework_failure_
 LC_ALL=C ls $disabled_options --zero dir >out || fail=1
-tr '\n' '\0' <<EOF >exp
-a
-b
-cc
-EOF
+printf '%s\0' a b cc 'com,ma' "$newline" >exp || framework_failure_
 
 compare exp out || fail=1
 

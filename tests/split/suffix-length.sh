@@ -1,7 +1,7 @@
 #!/bin/sh
 # Show that split -a works.
 
-# Copyright (C) 2002-2025 Free Software Foundation, Inc.
+# Copyright (C) 2002-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -72,5 +72,19 @@ split -a2 -C1000 < /dev/null || fail=1
 rm -f x*
 returns_ 1 split -a2 -n1000 < /dev/null || fail=1
 test -f xaa && fail=1
+
+# Ensure that an excessively large suffix length fails gracefully,
+# rather than crashing or hanging.
+rm -f x*
+vm=$(get_min_ulimit_v_ split -a 1 /dev/null)
+# TODO: This makes GNU/Hurd VMs hang, requiring a restart.
+# Remove the 'uname' check once it is fixed.
+if test "$(uname)" != GNU && test -n "$vm"; then
+  (ulimit -v $(($vm+6000)) &&
+   touch ulimit-worked &&
+   returns_ 1 split -a 66542562175252 in) ||
+    { test -f ulimit-worked && fail=1; }
+  test -f xaa && fail=1
+fi
 
 Exit $fail

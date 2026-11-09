@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that cp --debug works as documented
 
-# Copyright (C) 2023-2025 Free Software Foundation, Inc.
+# Copyright (C) 2023-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,5 +28,10 @@ returns_ 1 grep 'copy offload:.*reflink:.*sparse detection:' cp.out || fail=1
 touch file.cp || framework_failure_
 cp --debug --update=none file file.cp >cp.out || fail=1
 grep 'skipped' cp.out || fail=1
+
+if test -w /dev/full && test -c /dev/full; then
+  returns_ 1 cp file file.cp2 --debug >/dev/full || fail=1
+  test -e file.cp2 || fail=1
+fi
 
 Exit $fail

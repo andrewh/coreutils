@@ -1,7 +1,7 @@
 #!/bin/sh
 # ensure that mv doesn't first unlink a multi-hard-linked destination
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ touch a b || framework_failure_
 ln b b2 || framework_failure_
 
 
-strace -qe unlink mv a b > out 2>&1 || fail=1
+strace -qe trace=unlink mv a b > out 2>&1 || fail=1
 $EGREP 'unlink.*"b"' out && fail=1
 
 # Ensure that the source, "a", is gone.

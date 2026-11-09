@@ -2,7 +2,7 @@
 # Ensure that rm does not skip extra files after hitting an empty immutable dir.
 # Requires root access to do chattr +i, as well as an ext[23] or xfs file system
 
-# Copyright (C) 2020-2025 Free Software Foundation, Inc.
+# Copyright (C) 2020-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,11 +36,12 @@ if test $chattr_i_works = 0; then
   skip_ "chattr +i doesn't work on this file system"
 fi
 
+cleanup_() { chattr -i empty; }
+
 mkdir empty || framework_failure_
 touch x y || framework_failure_
 chattr +i empty || framework_failure_
 rm -rf empty x y
 { test -f x || test -f y; } && fail=1
-chattr -i empty
 
 Exit $fail

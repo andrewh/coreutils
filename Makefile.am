@@ -1,6 +1,6 @@
 # Make coreutils.					-*-Makefile-*-
 
-# Copyright (C) 1990-2025 Free Software Foundation, Inc.
+# Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@ EXTRA_DIST =				\
   .prev-version				\
   .version				\
   .vg-suppressions			\
+  DEPENDENCIES				\
+  PACKAGING				\
   README-install			\
   THANKS.in				\
   THANKS-to-translators			\
@@ -92,7 +94,8 @@ dist-hook: gen-ChangeLog
 	$(AM_V_at)touch $(distdir)/doc/constants.texi \
 	  $(distdir)/doc/coreutils.info
 
-gen_start_ver = 8.31
+# Keep about 5 years of changelogs
+gen_start_ver = 9.0
 .PHONY: gen-ChangeLog
 gen-ChangeLog:
 	$(AM_V_GEN)if test -d .git; then				\
@@ -187,11 +190,14 @@ install-exec-hook:
 	  test $$p = x && continue;					\
 	  ptrans=$$(printf '%s' "$$p" | sed -e "$(transform)");		\
 	  rm -f $(DESTDIR)$(bindir)/$$ptrans$(EXEEXT) || exit $$?;	\
-	  if test "x$(single_binary_install_type)" = xshebangs; then	\
+	  if test "$(single_binary_install_type)" = shebangs; then	\
 	    printf '#!%s --coreutils-prog-shebang=%s\n'			\
 	      $(bindir)/$$ctrans$(EXEEXT) $$p				\
 	      >$(DESTDIR)$(bindir)/$$ptrans$(EXEEXT) || exit $$?;	\
 	    chmod a+x,a-w $(DESTDIR)$(bindir)/$$ptrans$(EXEEXT) || exit $$?;\
+	  elif test "$(single_binary_install_type)" = hardlinks; then	\
+	    ln $(DESTDIR)$(bindir)/$$ctrans$(EXEEXT)			\
+	      $(DESTDIR)$(bindir)/$$ptrans$(EXEEXT) || exit $$?;	\
 	  else								\
 	    $(LN_S) -s $$ctrans$(EXEEXT)				\
 	      $(DESTDIR)$(bindir)/$$ptrans$(EXEEXT) || exit $$?;	\

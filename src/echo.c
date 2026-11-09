@@ -1,5 +1,5 @@
 /* echo.c, derived from code echo.c in Bash.
-   Copyright (C) 1987-2025 Free Software Foundation, Inc.
+   Copyright (C) 1987-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,18 +47,26 @@ Usage: %s [SHORT-OPTION]... [STRING]...\n\
   fputs (_("\
 Echo the STRING(s) to standard output.\n\
 \n\
-  -n             do not output the trailing newline\n\
 "), stdout);
-  fputs (_(DEFAULT_ECHO_TO_XPG
+  oputs (_("\
+  -n     do not output the trailing newline\n\
+"));
+  oputs (_(DEFAULT_ECHO_TO_XPG
            ? N_("\
-  -e             enable interpretation of backslash escapes (default)\n\
-  -E             disable interpretation of backslash escapes\n")
+  -e     enable interpretation of backslash escapes (default)\n\
+")
            : N_("\
-  -e             enable interpretation of backslash escapes\n\
-  -E             disable interpretation of backslash escapes (default)\n")),
-         stdout);
-  fputs (HELP_OPTION_DESCRIPTION, stdout);
-  fputs (VERSION_OPTION_DESCRIPTION, stdout);
+  -e     enable interpretation of backslash escapes\n\
+")));
+  oputs (_(DEFAULT_ECHO_TO_XPG
+           ? N_("\
+  -E     disable interpretation of backslash escapes\n\
+")
+           : N_("\
+  -E     disable interpretation of backslash escapes (default)\n\
+")));
+  oputs (HELP_OPTION_DESCRIPTION);
+  oputs (VERSION_OPTION_DESCRIPTION);
   fputs (_("\
 \n\
 If -e is in effect, the following sequences are recognized:\n\
@@ -66,7 +74,7 @@ If -e is in effect, the following sequences are recognized:\n\
 "), stdout);
   fputs (_("\
   \\\\      backslash\n\
-  \\a      alert (BEL)\n\
+  \\a      alert (bell)\n\
   \\b      backspace\n\
   \\c      produce no further output\n\
   \\e      escape\n\
@@ -116,7 +124,7 @@ main (int argc, char **argv)
   bool posixly_correct = !!getenv ("POSIXLY_CORRECT");
   bool allow_options =
     (! posixly_correct
-     || (! DEFAULT_ECHO_TO_XPG && 1 < argc && STREQ (argv[1], "-n")));
+     || (! DEFAULT_ECHO_TO_XPG && 1 < argc && streq (argv[1], "-n")));
 
   /* System V machines already have a /bin/sh with a v9 behavior.
      Use the identical behavior for these machines so that the
@@ -135,13 +143,13 @@ main (int argc, char **argv)
      order to avoid accepting abbreviations.  */
   if (allow_options && argc == 2)
     {
-      if (STREQ (argv[1], "--help"))
+      if (streq (argv[1], "--help"))
         usage (EXIT_SUCCESS);
 
-      if (STREQ (argv[1], "--version"))
+      if (streq (argv[1], "--version"))
         {
           version_etc (stdout, PROGRAM_NAME, PACKAGE_NAME, Version, AUTHORS,
-                       (char *) nullptr);
+                       (char *) NULL);
           return EXIT_SUCCESS;
         }
     }

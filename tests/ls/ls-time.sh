@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test some of ls's sorting options.
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -134,6 +134,21 @@ EOF
   fail=1
 fi
 
+# -u and -c only select which timestamp a long listing shows; the
+# entries are still sorted by name.  Note -l is not the only way to
+# ask for a long listing.
+for long_opt in -l -g -o -n --full-time --dired; do
+  for time_opt in -u -c; do
+    set -- $(ls $long_opt $time_opt a B c | sed -n 's/.* \([aBc]\)$/\1/p')
+    test "$*" = 'B a c' ||
+      { echo "ls $long_opt $time_opt sorted as '$*'" >&2; fail=1; }
+  done
+done
+
+# ... whereas -t does select time order in a long listing.
+set -- $(ls -lut a B c | sed -n 's/.* \([aBc]\)$/\1/p')
+test "$*" = 'c B a' || fail=1
+
 # This check is ineffective if:
 #   en_US locale is not on the system.
 #   The system en_US message catalog has a specific TIME_FMT translation,
@@ -153,5 +168,15 @@ if gettext --version >/dev/null 2>&1; then
     fi
   fi
 fi
+
+# With a two-line --time-style format (FORMAT1 NEWLINE FORMAT2),
+# FORMAT1 applies to non-recent (old) files and FORMAT2 to recent files.
+touch -m recent || framework_failure_
+test $(($(date -r recent +%s) - $(date -r a +%s))) -gt $((31556952/2)) ||
+  framework_failure_
+ls -l --time-style="+old-%Y
+new-%Y" a recent >ts_out || fail=1
+grep -E "old-$(date -r a +%Y) a\$" ts_out &&
+grep -E "new-$(date -r recent +%Y) recent\$" ts_out || { cat ts_out; fail=1; }
 
 Exit $fail

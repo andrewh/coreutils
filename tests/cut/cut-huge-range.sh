@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that cut does not allocate mem for large ranges
 
-# Copyright (C) 2012-2025 Free Software Foundation, Inc.
+# Copyright (C) 2012-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,10 +22,9 @@ getlimits_
 
 vm=$(get_min_ulimit_v_ returns_ 0 cut -b1 /dev/null) \
   || skip_ 'shell lacks ulimit, or ASAN enabled'
+vm=$(($vm+1000))  # https://bugzilla.redhat.com/2424302
 
 # Ensure we can cut up to our sentinel value.
-# Don't use expr to subtract one,
-# since UINTMAX_MAX may exceed its maximum value.
 CUT_MAX=$(expr $UINTMAX_MAX - 1) || framework_failure_
 
 # From coreutils-8.10 through 8.20, this would make cut try to allocate

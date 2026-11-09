@@ -1,6 +1,6 @@
 /* Invoke open, but return either a desired file descriptor or -1.
 
-   Copyright (C) 2005-2025 Free Software Foundation, Inc.
+   Copyright (C) 2005-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include "unistd--.h"
 
 /* Open a file to a particular file descriptor.  This is like standard
    'open', except it always returns DESIRED_FD if successful.  */

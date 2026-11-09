@@ -29,6 +29,7 @@
 /build-aux/config.sub
 /build-aux/depcomp
 /build-aux/install-sh
+/build-aux/makeinfo-wrapper.sh
 /build-aux/mdate-sh
 /build-aux/missing
 /build-aux/snippet/
@@ -45,6 +46,8 @@
 /coreutils-*.tar.gz.sig
 /coreutils-*.tar.xz
 /coreutils-*.tar.xz.sig
+/coreutils-*.tar.zst
+/coreutils-*.tar.zst.sig
 /doc/coverage
 /doc/manual
 /gnulib-tests
@@ -52,6 +55,7 @@
 /lib/.gitignore
 /lib/alloca.h
 /lib/arg-nonnull.h
+/lib/argz.h
 /lib/arpa/inet.h
 /lib/assert.h
 /lib/byteswap.h
@@ -109,6 +113,7 @@
 /lib/stdarg.h
 /lib/stdbool.h
 /lib/stdbit.h
+/lib/stdcountof.h
 /lib/stdckdint.h
 /lib/stddef.h
 /lib/stdint.h
@@ -118,6 +123,7 @@
 /lib/strings.h
 /lib/sys/
 /lib/termios.h
+/lib/thread-creators.h
 /lib/time.h
 /lib/uchar.h
 /lib/unicase.h
@@ -205,6 +211,7 @@
 /src/single-binary.mk
 /src/version.c
 /src/version.h
+/src/vg/
 /stamp-h1
 /tests/*/*.log
 /tests/*/*.trs

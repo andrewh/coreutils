@@ -1,7 +1,7 @@
 #!/bin/sh
 # tests for printf %q
 
-# Copyright (C) 2015-2025 Free Software Foundation, Inc.
+# Copyright (C) 2015-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,8 @@ print_ver_ printf
 prog='env printf'
 
 # Equivalent output to ls --quoting=shell-escape
-$prog '%q\n' '' "'" a 'a b' '~a' 'a~' "$($prog %b 'a\r')" > out
+$prog '%q\n' '' "'" a 'a b' '~a' 'a~' \
+ "$($prog %b 'a\r')" "$($prog "\001'\001")" > out
 cat <<\EOF > exp || framework_failure_
 ''
 "'"
@@ -31,23 +32,27 @@ a
 '~a'
 a~
 'a'$'\r'
+''$'\001'\'''$'\001'
 EOF
 compare exp out || fail=1
 
 unset LC_ALL
-if test "$LOCALE_FR_UTF8" != "none"; then
+if test -n "$LOCALE_FR_UTF8" && test "$LOCALE_FR_UTF8" != "none"; then
   f=$LOCALE_FR_UTF8
   (
    #printable multi-byte
    LC_ALL=$f $prog '%q\n' 'áḃç' > out
    #non-printable multi-byte
    LC_ALL=$f $prog '%q\n' "$($prog '\xc2\x81')" >> out
+   #non-printable multi-byte in a name with an apostrophe
+   LC_ALL=$f $prog '%q\n' "$($prog "it's\\xc2\\x9bhere")" >> out
    #printable multi-byte in C locale
    LC_ALL=C $prog '%q\n' 'áḃç' >> out
   )
   cat <<\EOF > exp || framework_failure_
 áḃç
 ''$'\302\201'
+'it'\''s'$'\302\233''here'
 ''$'\303\241\341\270\203\303\247'
 EOF
   compare exp out || fail=1

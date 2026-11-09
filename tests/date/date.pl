@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "date".
 
-# Copyright (C) 2005-2025 Free Software Foundation, Inc.
+# Copyright (C) 2005-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use strict;
+
+my $limits = getlimits ();
+# Most systems support INT_MAX + 1900, but OpenBSD 7.8
+# limits tm_year in mktime to INT_MAX.
+my $large_year = $limits->{INT_MAX};
+my $large_year_out_of_range = $large_year + 1900 + 1;
 
 (my $ME = $0) =~ s|.*/||;
 
@@ -167,9 +173,9 @@ my @Tests =
 
      # test for RFC-822 conformance
      ['rfc822-1', "-R -d '$d1'", {OUT=>"Sun, 19 Jan 1997 08:17:48 +0000"},
-      # Solaris 5.9's /bin/sh emits this diagnostic to stderr
-      # if you don't have support for the named locale.
-      {ERR_SUBST => q!s/^couldn't set locale correctly\n//!},
+      # Solaris 5.9's /bin/sh can emit "couldn't set locale"
+      # NetBSD 12 sh can emit "setlocale failed"
+      {ERR_SUBST => q!s/.*(?:couldn't set locale|failed setlocale).*\n//!},
       {ENV => 'LC_ALL=de_DE TZ=UTC0'}],
 
      # Relative seconds, with time.  fixed in 2.0j
@@ -196,6 +202,16 @@ my @Tests =
      ['moname-d-y', '--iso -d May-23-2003', {OUT=>"2003-05-23"}],
      ['moname-d-y-r', '--rfc-3339=date -d May-23-2003', {OUT=>"2003-05-23"}],
 
+     # Ensure we can parse DAY.MONTH.YEAR and its short form DAY.MONTH.
+     ['european-0', "-I -d '24.01.2026'", {OUT=>"2026-01-24"}],
+     ['european-1', "-I -d '24.1.2026'", {OUT=>"2026-01-24"}],
+     ['european-2', "-d '24.01.' +%m-%d", {OUT=>"01-24"}],
+     ['european-3', "-d '1.2.' +%m-%d", {OUT=>"02-01"}],
+     ['eu-combo-1', "-d '1.2. 3:4:5.6' +%m-%d-%T", {OUT=>"02-01-03:04:05"}],
+     ['eu-combo-2', "-d '3:4:5.6 1.2.' +%m-%d-%T", {OUT=>"02-01-03:04:05"}],
+     ['eu-combo-3', "-d '1.2. 3' +%m-%d-%H", {OUT=>"02-01-03"}],
+     ['eu-combo-4', "-d '3 1.2.' +%m-%d-%H", {OUT=>"02-01-03"}],
+
      ['epoch', '--iso=sec -d @31536000',
       {OUT=>"1971-01-01T00:00:00+00:00"}],
      ['epoch-r', '--rfc-3339=sec -d @31536000',
@@ -221,6 +237,13 @@ my @Tests =
 
      ['tz-5', '+%:z', {OUT=>"-00:01"}, {ENV=>'TZ=XXX0:01'}],
 
+     # Test time zone format strings with space padding.
+     ['tz-underscore-1', '+%_z', {OUT=>'   +0'}],
+     ['tz-underscore-2', '+%_:z', {OUT=>' +0:00'}],
+     ['tz-underscore-3', '+%_::z', {OUT=>' +0:00:00'}],
+     ['tz-underscore-4', '+%_:::z', {OUT=>' +0'}],
+     ['tz-underscore-5', '+%_::::z', {OUT=>'%_::::z'}],
+
      # Accept %:z with a field width before the ':'.
      ['tz-5w','+%8:z', {OUT=>"-0000:01"}, {ENV=>'TZ=XXX0:01'}],
      # Don't recognize %:z with a field width between the ':' and the 'z'.
@@ -229,6 +252,8 @@ my @Tests =
      # Test alphabetic timezone abbrv
      ['tz-6', '+%Z', {OUT=>"UTC"}],
      ['tz-7', '+%Z', {OUT=>"JST"}, {ENV=>'TZ=JST-9'}],
+
+     ['arg-order', '+%Y-%m-%d -d 2026-02-13', {OUT=>"2026-02-13"}],
 
      ['ns-relative',
       '--iso=ns',
@@ -275,6 +300,57 @@ my @Tests =
      ['fill-1', '-d 1999-12-08 +%_3d', {OUT=>'  8'}],
      ['fill-2', '-d 1999-12-08 +%03d', {OUT=>'008'}],
 
+     # Test modifier edge cases: flags without explicit width
+     ['underscore-no-width-1', '-d 1999-06-01 +%_d', {OUT=>' 1'}],
+     ['underscore-no-width-2', '-d 1999-06-15 +%_m', {OUT=>' 6'}],
+     ['underscore-no-width-3', '-d "1999-06-01 05:00:00" +%_H', {OUT=>' 5'}],
+     ['underscore-no-width-4', '-d 1999-06-01 +%_Y', {OUT=>'1999'}],
+     ['underscore-no-width-5', '-d 1999-06-01 +%_C', {OUT=>'19'}],
+     ['underscore-no-width-6', '-d 1999-01-01 +%_j', {OUT=>'  1'}],
+
+     # Test zero flag overriding space-padded specifiers
+     ['zero-override-space-1', '-d 1999-06-05 +%0e', {OUT=>'05'}],
+     ['zero-override-space-2', '-d "1999-06-01 05:00:00" +%0k', {OUT=>'05'}],
+     ['zero-override-space-3', '-d "1999-06-01 05:00:00" +%0l', {OUT=>'05'}],
+
+     # Composite specifiers are atomic: the '-' (no padding) flag is
+     # ignored, as there is no whole-expansion padding to suppress and
+     # it does not reach the sub-fields they expand to.
+     ['composite-dash-D', "-d '2004-06-15 07:08:09' +%-D", {OUT=>'06/15/04'}],
+     ['composite-dash-F', "-d '2004-06-15 07:08:09' +%-F", {OUT=>'2004-06-15'}],
+     ['composite-dash-T', "-d '2004-06-15 07:08:09' +%-T", {OUT=>'07:08:09'}],
+     ['composite-dash-R', "-d '2004-06-15 07:08:09' +%-R", {OUT=>'07:08'}],
+     ['composite-dash-r', "-d '2004-06-15 07:08:09' +%-r",
+      {OUT=>'07:08:09 AM'}],
+     ['composite-dash-x', "-d '2004-06-15 07:08:09' +%-x", {OUT=>'06/15/04'}],
+     ['composite-dash-X', "-d '2004-06-15 07:08:09' +%-X", {OUT=>'07:08:09'}],
+     # Other flags and the width still apply to the whole expansion.
+     ['composite-underscore-D', "-d '2004-06-15' +%_D", {OUT=>'06/15/04'}],
+     ['composite-zero-D', "-d '2004-06-15' +%0D", {OUT=>'06/15/04'}],
+     ['composite-width-D', "-d '2004-06-15' +%10D", {OUT=>'  06/15/04'}],
+     # For comparison, '-' does suppress padding for simple specifiers.
+     ['dash-simple-m', "-d '2004-06-15' +%-m", {OUT=>'6'}],
+     ['dash-simple-d', "-d '2004-06-05' +%-d", {OUT=>'5'}],
+
+     # Test plus flag without width (should not add sign for 4-digit year)
+     ['plus-no-width-1', '-d 1999-06-01 +%+Y', {OUT=>'1999'}],
+     ['plus-no-width-2', '-d 1999-06-01 +%+6Y', {OUT=>'+01999'}],
+     # '+' adds a sign only to year conversions wider than their usual width;
+     # elsewhere it zero-pads like '0'.  A later padding flag overrides it.
+     ['plus-natural-width-Y', '-d 2020-01-05 +%+4Y', {OUT=>'2020'}],
+     ['plus-wide-Y', '-d 2020-01-05 +%+5Y', {OUT=>'+2020'}],
+     ['plus-wide-y', '-d 2020-01-05 +%+3y', {OUT=>'+20'}],
+     ['plus-natural-width-y', '-d 2020-01-05 +%+2y', {OUT=>'20'}],
+     ['plus-wide-C', '-d 2020-01-05 +%+3C', {OUT=>'+20'}],
+     ['plus-no-width-G', '-d 2020-01-05 +%+G', {OUT=>'2020'}],
+     ['plus-no-width-F', '-d 2020-01-05 +%+F', {OUT=>'2020-01-05'}],
+     ['plus-wide-F', '-d 2020-01-05 +%+12F', {OUT=>'+02020-01-05'}],
+     ['plus-month', '-d 2020-01-05 +%+3m', {OUT=>'001'}],
+     ['plus-day', '-d 2020-01-05 +%+3d', {OUT=>'005'}],
+     ['plus-then-underscore', '-d 2020-01-05 +%+_5Y', {OUT=>' 2020'}],
+     ['plus-then-zero', '-d 2020-01-05 +%+05Y', {OUT=>'02020'}],
+     ['dash-then-plus', '-d 2020-01-05 +%-+6Y', {OUT=>'+02020'}],
+
      # Test the combination of the to-upper-case modifier (^) and a conversion
      # specifier that expands to a string containing lower case characters.
      ['subfmt-up1', '-d "1999-12-08 7:30" "+%^c"',
@@ -319,7 +395,133 @@ my @Tests =
 
      # test with %%-N
      ['pct-pct', '+%%-N', {OUT => '%-N'}],
+
+     # Test parenthesis comment handling
+     # Single parenthesis - should be treated as empty string (midnight today)
+     ['paren-1', "-d '(' +'%H:%M:%S'", {OUT=>"00:00:00"}],
+
+     # Parenthesis with preceding text - comment should be ignored
+     ['paren-2', "-d '1(ignore this comment' +'%H:%M:%S'", {OUT=>"01:00:00"}],
+
+     # Parenthesis with date - comment should be ignored
+     ['paren-3', "-d '2026-01-05(this is a comment' -u +'%Y-%m-%d'",
+      {OUT=>"2026-01-05"}],
+
+     # Text enclosed in parentheses is treated as a comment
+     ['paren-4', "-d '2026(this is a comment)-01-05' -u +'%Y-%m-%d'",
+      {OUT=>"2026-01-05"}],
+
+     # Nested comments are supported
+     ['paren-5', "-d '((nested))2026-01-05' -u +'%Y-%m-%d'",
+      {OUT=>"2026-01-05"}],
+     ['paren-6', "-d '((nested)2026-01-05)' +'%H:%M:%S'", {OUT=>"00:00:00"}],
+
+     # Test timezone conversion with -u -d flag
+     # "10:30 UTC-05" should convert to "15:30 UTC", not "10:30 UTC"
+     ['tz-conversion-est', "-u -d '10:30 UTC-05' +'%H:%M'", {OUT=>"15:30"}],
+
+     # Test multiple --iso-8601 options.
+     ['multiple-iso1', "--iso-8601 --iso-8601 -d '2026-05-11'",
+      {OUT=>"2026-05-11"}],
+     ['multiple-iso2', "--iso-8601=hours --iso-8601=minutes -d '2026-05-11'",
+      {OUT=>"2026-05-11T00:00+00:00"}],
+     ['multiple-iso3', "--iso-8601=minutes --iso-8601=hours -d '2026-05-11'",
+      {OUT=>"2026-05-11T00+00:00"}],
+
+     # Test that using both a format string and format option fails.
+     ['multiple-fmt1', "--iso-8601 -d '2026-05-15' +'%Y'",
+      {ERR => "date: multiple output formats specified\n"},
+      {EXIT => 1},
+     ],
+     ['multiple-fmt2', "--rfc-email -d '2026-05-15' +'%Y'",
+      {ERR => "date: multiple output formats specified\n"},
+      {EXIT => 1},
+     ],
+     ['multiple-fmt3', "--rfc-3339=date -d '2026-05-15' +'%Y'",
+      {ERR => "date: multiple output formats specified\n"},
+      {EXIT => 1},
+     ],
+
+     # A leading day-of-week name must not shift an explicit calendar date.
+     ['dow-prefix', "-d 'Mon, 2024-06-15 12:00:00' '+%Y-%m-%dT%T'",
+      {OUT=>"2024-06-15T12:00:00"}],
+
+     # Out-of-range zone minutes carry into the hours (99' == 1h39').
+     ['zone-min-99', "-d '2024-06-15 12:00 +05:99' '+%Y-%m-%dT%T%z'",
+      {OUT=>"2024-06-15T05:21:00+0000"}],
+
+     # Two timezone tokens in one operand is an error.
+     ['double-zone', "-d '2024-06-15 12:00 EST PST' '+%T'",
+      {ERR=>"date: invalid date '2024-06-15 12:00 EST PST'\n"},
+      {EXIT=>1}],
+
+     # A bare sign is the empty relative offset: midnight today.
+     ['bare-plus', "-d '+' '+%H:%M:%S'", {OUT=>"00:00:00"}],
+     ['bare-minus', "-d '-' +%H:%M:%S", {OUT=>"00:00:00"}],
+
+     # A trailing token after an \@epoch operand is an error.
+     ['epoch-trailing', "-d '\@5 UTC' '+%T'",
+      {ERR=>"date: invalid date '\@5 UTC'\n"},
+      {EXIT=>1}],
+
+     # The diagnostic reproduces the operand verbatim, surrounding blanks
+     # included.
+     ['quote-blanks', "-d '  noon  '",
+      {ERR=>"date: invalid date '  noon  '\n"},
+      {EXIT=>1}],
+
+     # Non-ASCII bytes in a rejected operand are octal-escaped (U+2212 here).
+     ['quote-nonascii', "-d '\xe2\x88\x921 day'",
+      {ERR=>"date: invalid date '\\342\\210\\2221 day'\n"},
+      {EXIT=>1}],
+
+     # '+N unit' after a complete HH:MM:SS time is not a relative addition.
+     # One needs to use "HH:MM:SS today" so that the relative portion
+     # is not interpreted as a timezone.
+     ['plus-unit-noadd', "-d '2024-06-15 12:00:00 +1 hour' '+%Y-%m-%dT%T%z'",
+      {OUT=>"2024-06-15T12:00:00+0000"}],
+
+     # Test -d with multiple time zone abbreviations.
+     ['multiple-tz-abbrev1',  "-d 'PDT PDT'",
+      {ERR=>"date: invalid date 'PDT PDT'\n"}, {EXIT=>1}],
+     ['multiple-tz-abbrev2',  "-d '2026-06-14 PDT PDT'",
+      {ERR=>"date: invalid date '2026-06-14 PDT PDT'\n"}, {EXIT=>1}],
     );
+
+$limits->{TIME_T_MAX} == $limits->{INTMAX_MAX}
+  and push @Tests,
+    ['plus-5-digit-year', '-d 12020-01-05 +%+Y', {OUT=>'+12020'}],
+    ['plus-then-dash-5-digit', '-d 12020-01-05 +%+-Y', {OUT=>'12020'}],
+    ['plus-5-digit-F', '-d 12020-01-05 +%+F', {OUT=>'+12020-01-05'}],
+    ['large-year', "-d '$large_year-01-01' +'%Y-%m-%d'",
+     {OUT=>"$large_year-01-01"}];
+
+push @Tests,
+  ['large-year-out-of-range',
+   "-d '$large_year_out_of_range-01-01' +'%Y-%m-%d'",
+   {ERR => "date: invalid date '$large_year_out_of_range-01-01'\n"},
+   {EXIT => 1},
+  ];
+
+# Test that the weekday is ignored when explicit dates are given.
+# However, a invalid weekday will still result in an error.
+my @weekdays = ('Mond', 'Tuesd', 'Wedn', 'Thursd', 'Frid', 'Satu', 'Sund');
+my (@bad, @good);
+for my $i (1..$#weekdays + 1)
+  {
+    my $weekday = $weekdays[$i - 1];
+    my $iso_date = "2026-07-" . ($weekday eq 'Wedn' ? '21' : '22');
+    my $date = "$weekday, $iso_date";
+    push @bad,
+      ["bad-weekday-explict-date$i", "-u -d '$date' +'%Y-%m-%d'",
+       {ERR=>"date: invalid date '$date'\n"}, {EXIT=>1}];
+    chop $weekday;
+    my $date = "$weekday, $iso_date";
+    push @good,
+      ["good-weekday-explict-date$i", "-u -d '$date' +'%Y-%m-%d'",
+       {OUT=>"$iso_date"}];
+  }
+push @Tests, @bad, @good;
 
 # Repeat the cross-dst test, using Jan 1, 2005 and every interval from 1..364.
 foreach my $i (1..364)

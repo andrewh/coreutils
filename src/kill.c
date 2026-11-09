@@ -1,5 +1,5 @@
 /* kill -- send a signal to a process
-   Copyright (C) 2002-2025 Free Software Foundation, Inc.
+   Copyright (C) 2002-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,12 +41,12 @@ static char const short_options[] =
 
 static struct option const long_options[] =
 {
-  {"list", no_argument, nullptr, 'l'},
-  {"signal", required_argument, nullptr, 's'},
-  {"table", no_argument, nullptr, 't'},
+  {"list", no_argument, NULL, 'l'},
+  {"signal", required_argument, NULL, 's'},
+  {"table", no_argument, NULL, 't'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -68,14 +68,20 @@ Send signals to processes, or list signals.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
+      oputs (_("\
   -s, --signal=SIGNAL, -SIGNAL\n\
-                   specify the name or number of the signal to be sent\n\
-  -l, --list       list signal names, or convert signal names to/from numbers\n\
-  -t, --table      print a table of signal information\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+         specify the name or number of the signal to be sent\n\
+"));
+      oputs (_("\
+  -l, --list\n\
+         list signal names, or convert signal names to/from numbers\n\
+"));
+      oputs (_("\
+  -t, --table\n\
+         print a table of signal information\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\n\
 SIGNAL may be a signal name like 'HUP', or a signal number like '1',\n\
 or the exit status of a process terminated by a signal.\n\
@@ -107,7 +113,6 @@ print_table_row (int num_width, int signum,
 static int
 list_signals (bool table, char *const *argv)
 {
-  int signum;
   int status = EXIT_SUCCESS;
   char signame[SIG2STR_MAX];
 
@@ -117,11 +122,11 @@ list_signals (bool table, char *const *argv)
 
       /* Compute the maximum width of a signal number.  */
       int num_width = 1;
-      for (signum = 1; signum <= SIGNUM_BOUND / 10; signum *= 10)
+      for (int signum = 1; signum <= SIGNUM_BOUND / 10; signum *= 10)
         num_width++;
 
       /* Compute the maximum width of a signal name.  */
-      for (signum = 0; signum <= SIGNUM_BOUND; signum++)
+      for (int signum = 0; signum <= SIGNUM_BOUND; signum++)
         if (sig2str (signum, signame) == 0)
           {
             idx_t len = strlen (signame);
@@ -132,7 +137,7 @@ list_signals (bool table, char *const *argv)
       if (argv)
         for (; *argv; argv++)
           {
-            signum = operand2sig (*argv);
+            int signum = operand2sig (*argv);
             if (signum < 0)
               status = EXIT_FAILURE;
             else
@@ -143,7 +148,7 @@ list_signals (bool table, char *const *argv)
               }
           }
       else
-        for (signum = 0; signum <= SIGNUM_BOUND; signum++)
+        for (int signum = 0; signum <= SIGNUM_BOUND; signum++)
           if (sig2str (signum, signame) == 0)
             print_table_row (num_width, signum, name_width, signame);
     }
@@ -152,7 +157,7 @@ list_signals (bool table, char *const *argv)
       if (argv)
         for (; *argv; argv++)
           {
-            signum = operand2sig (*argv);
+            int signum = operand2sig (*argv);
             if (signum < 0)
               status = EXIT_FAILURE;
             else if (c_isdigit (**argv))
@@ -166,7 +171,7 @@ list_signals (bool table, char *const *argv)
               printf ("%d\n", signum);
           }
       else
-        for (signum = 0; signum <= SIGNUM_BOUND; signum++)
+        for (int signum = 0; signum <= SIGNUM_BOUND; signum++)
           if (sig2str (signum, signame) == 0)
             puts (signame);
     }
@@ -225,7 +230,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, short_options, long_options, nullptr))
+  while ((optc = getopt_long (argc, argv, short_options, long_options, NULL))
          != -1)
     switch (optc)
       {
@@ -300,6 +305,6 @@ main (int argc, char **argv)
     }
 
   return (list
-          ? list_signals (table, optind < argc ? argv + optind : nullptr)
+          ? list_signals (table, optind < argc ? argv + optind : NULL)
           : send_signals (signum, argv + optind));
 }

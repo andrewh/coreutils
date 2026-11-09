@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that shuf randomizes its input.
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,18 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ shuf
 getlimits_
+uses_strace_
+
+# Ensure we handle unsupported getrandom syscall gracefully
+strace -o /dev/null -e inject=getrandom:error=ENOSYS shuf -i 1-9
+ret=$?
+test $ret = 0 || test $ret = 1 || fail=1
+
+# ensure randomization doesn't depend solely on ASLR
+# This is a probabilistic test :-)
+# However, the odds of failure are low: 1 in $UINTMAX_MAX (~ 1 in 4B on 32 bit)
+shuf_rand() { setarch -R shuf -i 1-$UINTMAX_MAX -n 1; }
+shuf_rand >out1 && shuf_rand >out2 && compare out1 out2 && fail=1
 
 seq 100 > in || framework_failure_
 
@@ -65,6 +77,11 @@ shuf --zero-terminated -i 1-1 > out || fail=1
 printf '1\0' > exp || framework_failure_
 cmp out exp || { fail=1; echo "missing NUL terminator?" 1>&2; }
 
+# Ensure shuf exits with 1 if memory exhausted
+vm=$(get_min_ulimit_v_ shuf -i1-1) && (ulimit -v $vm shuf -i1-1) && {
+  (ulimit -v $vm && returns_ 1 shuf -i1-$SIZE_MAX) || fail=1
+}
+
 # Ensure shuf -n operates efficiently for small n. Before coreutils-8.13
 # this would try to allocate $SIZE_MAX * sizeof(size_t)
 timeout 10 shuf -i1-$SIZE_MAX -n2 >/dev/null ||
@@ -82,6 +99,18 @@ fi
 shuf -n10 -i0-9 -n3 -n20 > exp || framework_failure_
 c=$(wc -l < exp) || framework_failure_
 test "$c" -eq 3 || { fail=1; echo "Multiple -n failed">&2 ; }
+
+# Test that the conversion from integer to string doesn't write past a buffer.
+# Note that the value is too large for shell arithmetic.
+v=$ULONG_MAX
+while :; do
+  v=$(echo $v | sed 's/^0/1/')
+  test -z "$v" && break
+  echo $v > exp
+  shuf -i $v-$v > out || fail=1
+  compare exp out || fail=1
+  v=$(echo $v | cut -b2-)
+done
 
 # Test error conditions
 
@@ -106,6 +135,17 @@ done
 # multiple random-sources are forbidden
 { shuf -i0-9 --random-source A --random-source B || test $? -ne 1; } &&
   { fail=1; echo "shuf did not detect multiple --random-source usage.">&2 ; }
+
+# A failed run must leave an existing -o output file untouched rather than
+# truncating it before the failure is detected.
+printf 'precious\n' > exp || framework_failure_
+cp exp out || framework_failure_
+returns_ 1 shuf -o out missing-input || fail=1
+compare exp out || { fail=1; echo "shuf truncated -o on input error">&2 ; }
+cp exp out || framework_failure_
+returns_ 1 shuf -o out --random-source=missing-input in || fail=1
+compare exp out ||
+ { fail=1; echo "shuf truncated -o on random-source error">&2 ; }
 
 # Test --repeat option
 

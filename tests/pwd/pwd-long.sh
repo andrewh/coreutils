@@ -2,7 +2,7 @@
 # -*- perl -*-
 # Ensure that pwd works even when run from a very deep directory.
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ pwd
+uses_strace_
 
 require_readable_root_
 require_perl_
@@ -26,9 +27,15 @@ require_perl_
 ARGV_0=$0
 export ARGV_0
 
+# Disable the getcwd syscall if possible, so more of our code is exercised.
+no_sys_getcwd() {
+  strace -f -o /dev/null -e trace=getcwd -e fault=all:error=ENOSYS "$@"
+}
+no_sys_getcwd true || no_sys_getcwd() { "$@"; }
+
 # Don't use CuTmpdir here, since File::Temp's use of rmtree can't
 # remove the deep tree we create.
-$PERL -Tw -I"$abs_srcdir/tests" -MCuSkip -- - <<\EOF
+no_sys_getcwd $PERL -Tw -I"$abs_srcdir/tests" -MCuSkip -- - <<\EOF
 
 # Show that pwd works even when the length of the resulting
 # directory name is longer than PATH_MAX.

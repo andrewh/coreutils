@@ -1,7 +1,7 @@
 #!/bin/sh
 # exercise the NaN-infloop bug in coreutils-8.13
 
-# Copyright (C) 2011-2025 Free Software Foundation, Inc.
+# Copyright (C) 2011-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,10 +22,10 @@ print_ver_ sort
 echo nan > F || framework_failure_
 printf 'nan\nnan\n' > exp || framework_failure_
 timeout 10 sort -g -m F F > out || fail=1
+compare exp out || fail=1
 
 # This was seen to infloop on some systems until coreutils v9.2 (bug 55212)
-yes nan | head -n128095 | timeout 60 sort -g > /dev/null || fail=1
+yes nan | head -n128095 | timeout 120 sort -g > /dev/null || fail=1
 
-compare exp out || fail=1
 
 Exit $fail

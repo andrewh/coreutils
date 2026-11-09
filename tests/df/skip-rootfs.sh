@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test df's behavior for skipping the pseudo "rootfs" file system.
 
-# Copyright (C) 2012-2025 Free Software Foundation, Inc.
+# Copyright (C) 2012-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@ DF_a() { df -a -x fuse.portal "$@"; }
 # rather than /proc/mounts.  I.e., when libmount is being used.
 DF_a >out || fail=1
 grep '^rootfs' out || skip_ 'no rootfs in mtab'
+{ grep '^rootfs .* /init' out && test $(stat -f -c %T /init) = tmpfs; } &&
+  skip_ 'test not compatible with WSL'
 
 # Ensure that rootfs is suppressed when no options is specified.
 df >out || fail=1

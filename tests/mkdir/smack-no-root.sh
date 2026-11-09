@@ -3,7 +3,7 @@
 # Derived from tests/mkdir/selinux.sh.
 # Ensure that an unsettable SMACK label doesn't cause a segfault.
 
-# Copyright (C) 2014-2025 Free Software Foundation, Inc.
+# Copyright (C) 2014-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,19 +20,17 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ mkdir mkfifo mknod
-
 require_smack_
+getlimits_
 
 c=arbitrary-smack-label
-msg="failed to set default file creation context to '$c':"
+msg="failed to set default file creation context to '$c': $EPERM"
 
 for cmd in 'mkdir dir' 'mknod b p' 'mkfifo f'; do
   $cmd --context="$c" 2> out && fail=1
   set -- $cmd
   echo "$1: $msg" > exp || framework_failure_
 
-  sed -e 's/ Operation not permitted$//' out > k || framework_failure_
-  mv k out || fail=1
   compare exp out || fail=1
 done
 

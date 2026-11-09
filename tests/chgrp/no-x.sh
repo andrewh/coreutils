@@ -2,7 +2,7 @@
 # Make sure chgrp gives the right diagnostic for a readable,
 # but inaccessible directory.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ print_ver_ chgrp
 require_membership_in_two_groups_
 skip_if_root_
 require_local_dir_
+getlimits_
 
 set _ $groups; shift
 g1=$1
@@ -47,7 +48,7 @@ sed "s/^$prog: cannot read directory /$prog: /" out > t && mv t out
 sed 's,d/no-x/y,d/no-x,' out > t && mv t out
 
 cat <<EOF > exp
-$prog: 'd/no-x': Permission denied
+$prog: 'd/no-x': $EACCES
 EOF
 
 compare exp out || fail=1

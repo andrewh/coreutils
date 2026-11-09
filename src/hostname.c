@@ -1,5 +1,5 @@
 /* hostname - set or print the name of current host system
-   Copyright (C) 1994-2025 Free Software Foundation, Inc.
+   Copyright (C) 1994-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -62,8 +62,8 @@ Print or set the hostname of the current system.\n\
 \n\
 "),
              program_name, program_name);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -84,7 +84,7 @@ main (int argc, char **argv)
 
   parse_gnu_standard_options_only (argc, argv, PROGRAM_NAME, PACKAGE_NAME,
                                    Version, true, usage, AUTHORS,
-                                   (char const *) nullptr);
+                                   (char const *) NULL);
 
   if (optind + 1 < argc)
      {
@@ -103,7 +103,7 @@ main (int argc, char **argv)
   else
     {
       hostname = xgethostname ();
-      if (hostname == nullptr)
+      if (hostname == NULL)
         error (EXIT_FAILURE, errno, _("cannot determine hostname"));
       puts (hostname);
     }

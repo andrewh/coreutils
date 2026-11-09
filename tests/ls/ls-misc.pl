@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -349,7 +349,29 @@ my @Tests =
       $rmdir_reg,
       {EXIT => 2},
      ],
-    );
+
+     # Negative, non-numeric and fractional --tabsize values are invalid.
+     (map { ["tabsize-invalid-$_", "--tabsize=$_",
+             {ERR => "$prog: invalid tab size: '$_'\n"},
+             {EXIT => 2},
+            ] } qw(-9 zz 0.5)),
+
+     # --block-size=0 is invalid, even if a later option overrides it.
+     (map { ["block-size-zero$_", "--block-size=0 $_",
+             {ERR => "$prog: invalid --block-size argument '0'\n"},
+             {EXIT => 2},
+            ] } ('', '--si', '-h')),
+
+     # A file name component that is too long is reported like any other
+     # file that cannot be accessed.  ERR_SUBST avoids false ENOENT failures
+     # where the long name might be allowed.
+     do { my $long = 'x' x 1000;
+       ['name-too-long', $long,
+        {ERR_SUBST=>"s/'$long':.*/'$long':/"},
+        {ERR => "$prog: cannot access '$long':\n"},
+        {EXIT => 2},
+       ] },
+   );
 
 umask 022;
 

@@ -1,5 +1,5 @@
 /* stdbuf -- setup the standard streams for a command
-   Copyright (C) 2009-2025 Free Software Foundation, Inc.
+   Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include "filenamecat.h"
 #include "quote.h"
 #include "xreadlink.h"
+#include "xstrtol-error.h"
 #include "xstrtol.h"
 #include "c-ctype.h"
 
@@ -46,38 +47,30 @@ static struct
 
 static struct option const longopts[] =
 {
-  {"input", required_argument, nullptr, 'i'},
-  {"output", required_argument, nullptr, 'o'},
-  {"error", required_argument, nullptr, 'e'},
+  {"input", required_argument, NULL, 'i'},
+  {"output", required_argument, NULL, 'o'},
+  {"error", required_argument, NULL, 'e'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Set size to the value of STR, interpreted as a decimal integer,
    optionally multiplied by various values.
-   Return -1 on error, 0 on success.
+   Return LONGINT_OK on success, otherwise an error for use with
+   xstrtol_fatal.
 
    This supports dd BLOCK size suffixes.
    Note we don't support dd's b=512, c=1, w=2 or 21x512MiB formats.  */
-static int
+static enum strtol_error
 parse_size (char const *str, size_t *size)
 {
   uintmax_t tmp_size;
-  enum strtol_error e = xstrtoumax (str, nullptr, 10,
+  enum strtol_error e = xstrtoumax (str, NULL, 10,
                                     &tmp_size, "EGkKMPQRTYZ0");
-  if (e == LONGINT_OK && SIZE_MAX < tmp_size)
+  if (e == LONGINT_OK && ckd_add (size, tmp_size, 0))
     e = LONGINT_OVERFLOW;
-
-  if (e == LONGINT_OK)
-    {
-      errno = 0;
-      *size = tmp_size;
-      return 0;
-    }
-
-  errno = (e == LONGINT_OVERFLOW ? EOVERFLOW : errno);
-  return -1;
+  return e;
 }
 
 void
@@ -94,13 +87,17 @@ Run COMMAND, with modified buffering operations for its standard streams.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
+      oputs (_("\
   -i, --input=MODE   adjust standard input stream buffering\n\
+"));
+      oputs (_("\
   -o, --output=MODE  adjust standard output stream buffering\n\
+"));
+      oputs (_("\
   -e, --error=MODE   adjust standard error stream buffering\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\n\
 If MODE is 'L' the corresponding stream will be line buffered.\n\
 This option is invalid with standard input.\n"), stdout);
@@ -146,12 +143,11 @@ set_program_path (char const *arg)
         program_path = dir_name (path);
       else if ((path = getenv ("PATH")))
         {
-          char *dir;
           path = xstrdup (path);
-          for (dir = strtok (path, ":"); dir != nullptr;
-               dir = strtok (nullptr, ":"))
+          for (char *dir = strtok (path, ":"); dir != NULL;
+               dir = strtok (NULL, ":"))
             {
-              char *candidate = file_name_concat (dir, arg, nullptr);
+              char *candidate = file_name_concat (dir, arg, NULL);
               if (access (candidate, X_OK) == 0)
                 {
                   program_path = dir_name (candidate);
@@ -181,6 +177,8 @@ optc_to_fileno (int c)
     case 'o':
       ret = STDOUT_FILENO;
       break;
+    default:
+      affirm (false);
     }
 
   return ret;
@@ -220,7 +218,7 @@ set_LD_PRELOAD (void)
   char const *const search_path[] = {
     program_path,
     PKGLIBEXECDIR,
-    nullptr
+    NULL
   };
 
   char const *const *path = search_path;
@@ -279,7 +277,7 @@ set_libstdbuf_options (void)
 {
   bool env_set = false;
 
-  for (size_t i = 0; i < ARRAY_CARDINALITY (stdbuf); i++)
+  for (size_t i = 0; i < countof (stdbuf); i++)
     {
       if (stdbuf[i].optarg)
         {
@@ -322,8 +320,9 @@ main (int argc, char **argv)
   initialize_exit_failure (EXIT_CANCELED);
   atexit (close_stdout);
 
-  while ((c = getopt_long (argc, argv, "+i:o:e:", longopts, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "+i:o:e:", longopts, NULL)) != -1)
     {
+      int const oi = -1;
       int opt_fileno;
 
       switch (c)
@@ -333,7 +332,7 @@ main (int argc, char **argv)
         case 'i':
         case 'o':
           opt_fileno = optc_to_fileno (c);
-          affirm (0 <= opt_fileno && opt_fileno < ARRAY_CARDINALITY (stdbuf));
+          affirm (0 <= opt_fileno && opt_fileno < countof (stdbuf));
           stdbuf[opt_fileno].optc = c;
           while (c_isspace (*optarg))
             optarg++;
@@ -343,13 +342,17 @@ main (int argc, char **argv)
               /* -oL will be by far the most common use of this utility,
                  but one could easily think -iL might have the same affect,
                  so disallow it as it could be confusing.  */
-              error (0, 0, _("line buffering stdin is meaningless"));
+              error (0, 0, _("line buffering standard input is meaningless"));
               usage (EXIT_CANCELED);
             }
 
-          if (!STREQ (optarg, "L")
-              && parse_size (optarg, &stdbuf[opt_fileno].size) == -1)
-            error (EXIT_CANCELED, errno, _("invalid mode %s"), quote (optarg));
+          if (!streq (optarg, "L"))
+            {
+              enum strtol_error e = parse_size (optarg,
+                                                &stdbuf[opt_fileno].size);
+              if (e != LONGINT_OK)
+                xstrtol_fatal (e, oi, c, longopts, optarg);
+            }
 
           break;
 

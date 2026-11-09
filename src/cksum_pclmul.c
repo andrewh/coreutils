@@ -1,5 +1,5 @@
-/* cksum -- calculate and print POSIX checksums and sizes of files
-   Copyright (C) 2021-2025 Free Software Foundation, Inc.
+/* cksum_crc -- calculate and print POSIX checksums and sizes of files
+   Copyright (C) 2021-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 #include <config.h>
 
-#include "cksum.h"
+#include "cksum_crc.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -29,11 +29,11 @@
 /* Calculate CRC32 using PCLMULQDQ CPU instruction found in x86/x64 CPUs */
 
 bool
-cksum_pclmul (FILE *fp, uint_fast32_t *crc_out, uintmax_t *length_out)
+cksum_pclmul (FILE *fp, uint_fast32_t *crc_out, intmax_t *length_out)
 {
   __m128i buf[BUFLEN / sizeof (__m128i)];
   uint_fast32_t crc = 0;
-  uintmax_t length = 0;
+  intmax_t length = 0;
   size_t bytes_read;
   __m128i single_mult_constant;
   __m128i four_mult_constant;
@@ -66,14 +66,13 @@ cksum_pclmul (FILE *fp, uint_fast32_t *crc_out, uintmax_t *length_out)
       __m128i fold_data;
       __m128i xor_crc;
 
-      if (length + bytes_read < length)
+      if (ckd_add (&length, length, bytes_read))
         {
           errno = EOVERFLOW;
           return false;
         }
-      length += bytes_read;
 
-      datap = (__m128i *)buf;
+      datap = buf;
 
       /* Fold in parallel eight 16-byte blocks into four 16-byte blocks */
       if (bytes_read >= 16 * 8)

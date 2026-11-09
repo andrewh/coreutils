@@ -1,5 +1,5 @@
 /* dd -- convert a file while copying it.
-   Copyright (C) 1985-2025 Free Software Foundation, Inc.
+   Copyright (C) 1985-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
 
 #include <config.h>
 
-#include <ctype.h>
 #include <sys/types.h>
 #include <signal.h>
 
@@ -41,17 +40,6 @@
   proper_name ("Paul Rubin"), \
   proper_name ("David MacKenzie"), \
   proper_name ("Stuart Kemp")
-
-/* Use SA_NOCLDSTOP as a proxy for whether the sigaction machinery is
-   present.  */
-#ifndef SA_NOCLDSTOP
-# define SA_NOCLDSTOP 0
-# define sigprocmask(How, Set, Oset) /* empty */
-# define sigset_t int
-# if ! HAVE_SIGINTERRUPT
-#  define siginterrupt(sig, flag) /* empty */
-# endif
-#endif
 
 /* NonStop circa 2011 lacks SA_RESETHAND; see Bug#9076.  */
 #ifndef SA_RESETHAND
@@ -121,11 +109,11 @@ enum
     STATUS_PROGRESS = 4
   };
 
-/* The name of the input file, or nullptr for the standard input. */
-static char const *input_file = nullptr;
+/* The name of the input file, or NULL for the standard input. */
+static char const *input_file = NULL;
 
-/* The name of the output file, or nullptr for the standard output. */
-static char const *output_file = nullptr;
+/* The name of the output file, or NULL for the standard output. */
+static char const *output_file = NULL;
 
 /* The page size on this host.  */
 static idx_t page_size;
@@ -295,6 +283,7 @@ enum
           | O_DIRECT
           | O_DIRECTORY
           | O_DSYNC
+          | O_EXCL
           | O_NOATIME
           | O_NOCTTY
           | O_NOFOLLOW
@@ -542,26 +531,50 @@ Usage: %s [OPERAND]...\n\
       fputs (_("\
 Copy a file, converting and formatting according to the operands.\n\
 \n\
+"), stdout);
+      oputs (_("\
   bs=BYTES        read and write up to BYTES bytes at a time (default: 512);\n\
                   overrides ibs and obs\n\
+"));
+      oputs (_("\
   cbs=BYTES       convert BYTES bytes at a time\n\
+"));
+      oputs (_("\
   conv=CONVS      convert the file as per the comma separated symbol list\n\
+"));
+      oputs (_("\
   count=N         copy only N input blocks\n\
+"));
+      oputs (_("\
   ibs=BYTES       read up to BYTES bytes at a time (default: 512)\n\
-"), stdout);
-      fputs (_("\
-  if=FILE         read from FILE instead of stdin\n\
+"));
+      oputs (_("\
+  if=FILE         read from FILE instead of standard input\n\
+"));
+      oputs (_("\
   iflag=FLAGS     read as per the comma separated symbol list\n\
+"));
+      oputs (_("\
   obs=BYTES       write BYTES bytes at a time (default: 512)\n\
-  of=FILE         write to FILE instead of stdout\n\
+"));
+      oputs (_("\
+  of=FILE         write to FILE instead of standard output\n\
+"));
+      oputs (_("\
   oflag=FLAGS     write as per the comma separated symbol list\n\
-  seek=N          (or oseek=N) skip N obs-sized output blocks\n\
-  skip=N          (or iseek=N) skip N ibs-sized input blocks\n\
-  status=LEVEL    The LEVEL of information to print to stderr;\n\
+"));
+      oputs (_("\
+  seek=N          (or oseek=N) skip N obs sized output blocks\n\
+"));
+      oputs (_("\
+  skip=N          (or iseek=N) skip N ibs sized input blocks\n\
+"));
+      oputs (_("\
+  status=LEVEL    The LEVEL of information to print to standard error;\n\
                   'none' suppresses everything but error messages,\n\
                   'noxfer' suppresses the final transfer statistics,\n\
                   'progress' shows periodic transfer statistics\n\
-"), stdout);
+"));
       fputs (_("\
 \n\
 N and BYTES may be followed by the following multiplicative suffixes:\n\
@@ -643,8 +656,8 @@ Options are:\n\
 "), SIGINFO == SIGUSR1 ? "USR1" : "INFO");
       }
 
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -849,10 +862,8 @@ interrupt_handler (int sig)
 /* An info signal was received; arrange for the program to print status.  */
 
 static void
-siginfo_handler (int sig)
+siginfo_handler (MAYBE_UNUSED int sig)
 {
-  if (! SA_NOCLDSTOP)
-    signal (sig, siginfo_handler);
   info_signal_count++;
 }
 
@@ -863,13 +874,11 @@ install_signal_handlers (void)
 {
   bool catch_siginfo = ! (SIGINFO == SIGUSR1 && getenv ("POSIXLY_CORRECT"));
 
-#if SA_NOCLDSTOP
-
   struct sigaction act;
   sigemptyset (&caught_signals);
   if (catch_siginfo)
     sigaddset (&caught_signals, SIGINFO);
-  sigaction (SIGINT, nullptr, &act);
+  sigaction (SIGINT, NULL, &act);
   if (act.sa_handler != SIG_IGN)
     sigaddset (&caught_signals, SIGINT);
   act.sa_mask = caught_signals;
@@ -881,29 +890,15 @@ install_signal_handlers (void)
          handle EINTR explicitly in iftruncate etc.
          to avoid blocking on uncommitted read/write calls.  */
       act.sa_flags = 0;
-      sigaction (SIGINFO, &act, nullptr);
+      sigaction (SIGINFO, &act, NULL);
     }
 
   if (sigismember (&caught_signals, SIGINT))
     {
       act.sa_handler = interrupt_handler;
       act.sa_flags = SA_NODEFER | SA_RESETHAND;
-      sigaction (SIGINT, &act, nullptr);
+      sigaction (SIGINT, &act, NULL);
     }
-
-#else
-
-  if (catch_siginfo)
-    {
-      signal (SIGINFO, siginfo_handler);
-      siginterrupt (SIGINFO, 1);
-    }
-  if (signal (SIGINT, SIG_IGN) != SIG_IGN)
-    {
-      signal (SIGINT, interrupt_handler);
-      siginterrupt (SIGINT, 1);
-    }
-#endif
 }
 
 /* Close FD.  Return 0 if successful, -1 (setting errno) otherwise.
@@ -970,7 +965,7 @@ process_signals (void)
       if (infos)
         info_signal_count = infos - 1;
 
-      sigprocmask (SIG_SETMASK, &oldset, nullptr);
+      sigprocmask (SIG_SETMASK, &oldset, NULL);
 
       if (interrupt)
         cleanup ();
@@ -1193,7 +1188,7 @@ iwrite (int fd, char const *buf, idx_t size)
       o_nocache_eof = true;
       invalidate_cache (STDOUT_FILENO, 0);
 
-      /* Attempt to ensure that that final block is committed
+      /* Attempt to ensure that the final block is committed
          to stable storage as quickly as possible.  */
       conversions_mask |= C_FSYNC;
 
@@ -1418,48 +1413,72 @@ parse_integer (char const *str, strtol_error *invalid)
      calling code should not rely on this function returning 0
      when *INVALID represents a non-overflow error.  */
   int indeterminate = 0;
-  uintmax_t n = indeterminate;
-  char *suffix;
   static char const suffixes[] = "bcEGkKMPQRTwYZ0";
-  strtol_error e = xstrtoumax (str, &suffix, 10, &n, suffixes);
-  intmax_t result;
+  intmax_t result = 1;
+  bool overflow = false;
+  bool warn_zero_multiplier = false;
+  strtol_error e;
 
-  if ((e & ~LONGINT_OVERFLOW) == LONGINT_INVALID_SUFFIX_CHAR
-      && *suffix == 'B' && str < suffix && suffix[-1] != 'B')
+  while (true)
     {
-      suffix++;
-      if (!*suffix)
+      uintmax_t n = indeterminate;
+      char *suffix;
+      e = xstrtoumax (str, &suffix, 10, &n, suffixes);
+
+      if ((e & ~LONGINT_OVERFLOW) == LONGINT_INVALID_SUFFIX_CHAR
+          && *suffix == 'B' && str < suffix && suffix[-1] != 'B')
+        {
+          suffix++;
+          if (!*suffix)
+            e &= ~LONGINT_INVALID_SUFFIX_CHAR;
+        }
+
+      bool multiply
+        = ((e & ~LONGINT_OVERFLOW) == LONGINT_INVALID_SUFFIX_CHAR
+           && *suffix == 'x');
+      if (multiply)
         e &= ~LONGINT_INVALID_SUFFIX_CHAR;
+
+      if ((e & ~LONGINT_OVERFLOW) != LONGINT_OK)
+        {
+          if (! (e & LONGINT_OVERFLOW) && n <= INTMAX_MAX)
+            {
+              *invalid = e;
+              return indeterminate;
+            }
+          e = LONGINT_OVERFLOW;
+        }
+
+      if (n == 0)
+        result = 0;
+      else if (result != 0)
+        {
+          intmax_t product;
+          if ((e & LONGINT_OVERFLOW)
+              || overflow
+              || ckd_mul (&product, result, n))
+            overflow = true;
+          else
+            result = product;
+        }
+
+      if (multiply && STRPREFIX (str, "0x"))
+        warn_zero_multiplier = true;
+
+      if (! multiply)
+        break;
+      str = suffix + 1;
     }
 
-  if ((e & ~LONGINT_OVERFLOW) == LONGINT_INVALID_SUFFIX_CHAR
-      && *suffix == 'x')
+  if (result == 0)
     {
-      strtol_error f = LONGINT_OK;
-      intmax_t o = parse_integer (suffix + 1, &f);
-      if ((f & ~LONGINT_OVERFLOW) != LONGINT_OK)
-        {
-          e = f;
-          result = indeterminate;
-        }
-      else if (ckd_mul (&result, n, o)
-               || (result != 0 && ((e | f) & LONGINT_OVERFLOW)))
-        {
-          e = LONGINT_OVERFLOW;
-          result = INTMAX_MAX;
-        }
-      else
-        {
-          if (result == 0 && STRPREFIX (str, "0x"))
-            diagnose (0, _("warning: %s is a zero multiplier; "
-                           "use %s if that is intended"),
-                      quote_n (0, "0x"), quote_n (1, "00x"));
-          e = LONGINT_OK;
-        }
+      if (warn_zero_multiplier)
+        diagnose (0, _("warning: %s is a zero multiplier; "
+                       "use %s if that is intended"),
+                  quote_n (0, "0x"), quote_n (1, "00x"));
+      e = LONGINT_OK;
     }
-  else if (n <= INTMAX_MAX)
-    result = n;
-  else
+  else if (overflow)
     {
       e = LONGINT_OVERFLOW;
       result = INTMAX_MAX;
@@ -1492,7 +1511,7 @@ scanargs (int argc, char *const *argv)
       char const *name = argv[i];
       char const *val = strchr (name, '=');
 
-      if (val == nullptr)
+      if (val == NULL)
         {
           diagnose (0, _("unrecognized operand %s"), quoteaf (name));
           usage (EXIT_FAILURE);
@@ -1522,7 +1541,7 @@ scanargs (int argc, char *const *argv)
           bool has_B = !!strchr (val, 'B');
           intmax_t n_min = 0;
           intmax_t n_max = INTMAX_MAX;
-          idx_t *converted_idx = nullptr;
+          idx_t *converted_idx = NULL;
 
           /* Maximum blocksize.  Keep it smaller than IDX_MAX, so that
              it fits into blocksize vars even if 1 is added for conv=swab.
@@ -1690,20 +1709,18 @@ scanargs (int argc, char *const *argv)
 static void
 apply_translations (void)
 {
-  int i;
-
   if (conversions_mask & C_ASCII)
     translate_charset (ebcdic_to_ascii);
 
   if (conversions_mask & C_UCASE)
     {
-      for (i = 0; i < 256; i++)
+      for (int i = 0; i < 256; i++)
         trans_table[i] = toupper (trans_table[i]);
       translation_needed = true;
     }
   else if (conversions_mask & C_LCASE)
     {
-      for (i = 0; i < 256; i++)
+      for (int i = 0; i < 256; i++)
         trans_table[i] = tolower (trans_table[i]);
       translation_needed = true;
     }
@@ -1728,9 +1745,8 @@ apply_translations (void)
 static void
 translate_buffer (char *buf, idx_t nread)
 {
-  idx_t i;
-  char *cp;
-  for (i = nread, cp = buf; i; i--, cp++)
+  char *cp = buf;
+  for (idx_t i = nread; i; i--, cp++)
     *cp = trans_table[to_uchar (*cp)];
 }
 
@@ -1989,8 +2005,7 @@ copy_with_block (char const *buf, idx_t nread)
         {
           if (col < conversion_blocksize)
             {
-              idx_t j;
-              for (j = col; j < conversion_blocksize; j++)
+              for (idx_t j = col; j < conversion_blocksize; j++)
                 output_char (space_character);
             }
           col = 0;
@@ -2273,6 +2288,8 @@ dd_copy (void)
           if (nwritten != n_bytes_read)
             {
               diagnose (errno, _("error writing %s"), quoteaf (output_file));
+              if (nwritten != 0)
+                w_partial++;
               return EXIT_FAILURE;
             }
           else if (n_bytes_read == input_blocksize)
@@ -2359,7 +2376,7 @@ dd_copy (void)
                 {
                   diagnose (errno, _("failed to truncate to %jd bytes"
                                      " in output file %s"),
-                            (intmax_t) output_offset, quoteaf (output_file));
+                            (intmax_t) {output_offset}, quoteaf (output_file));
                   return EXIT_FAILURE;
                 }
             }
@@ -2411,8 +2428,6 @@ synchronize_output (void)
 int
 main (int argc, char **argv)
 {
-  int i;
-  int exit_status;
   off_t offset;
 
   install_signal_handlers ();
@@ -2430,11 +2445,11 @@ main (int argc, char **argv)
 
   parse_gnu_standard_options_only (argc, argv, PROGRAM_NAME, PACKAGE, Version,
                                    true, usage, AUTHORS,
-                                   (char const *) nullptr);
+                                   (char const *) NULL);
   close_stdout_required = false;
 
   /* Initialize translation table to identity translation. */
-  for (i = 0; i < 256; i++)
+  for (int i = 0; i < 256; i++)
     trans_table[i] = i;
 
   /* Decode arguments. */
@@ -2442,7 +2457,7 @@ main (int argc, char **argv)
 
   apply_translations ();
 
-  if (input_file == nullptr)
+  if (input_file == NULL)
     {
       input_file = _("standard input");
       set_fd_flags (STDIN_FILENO, input_flags, input_file);
@@ -2459,7 +2474,7 @@ main (int argc, char **argv)
   input_offset = MAX (0, offset);
   input_seek_errno = errno;
 
-  if (output_file == nullptr)
+  if (output_file == NULL)
     {
       output_file = _("standard output");
       set_fd_flags (STDOUT_FILENO, output_flags, output_file);
@@ -2467,11 +2482,12 @@ main (int argc, char **argv)
   else
     {
       mode_t perms = MODE_RW_UGO;
+      bool const seeking = seek_records || seek_bytes;
       int opts
         = (output_flags
            | (conversions_mask & C_NOCREAT ? 0 : O_CREAT)
            | (conversions_mask & C_EXCL ? O_EXCL : 0)
-           | (seek_records || (conversions_mask & C_NOTRUNC) ? 0 : O_TRUNC));
+           | (seeking || (conversions_mask & C_NOTRUNC) ? 0 : O_TRUNC));
 
       off_t size;
       if ((ckd_mul (&size, seek_records, output_blocksize)
@@ -2486,14 +2502,14 @@ main (int argc, char **argv)
       /* Open the output file with *read* access only if we might
          need to read to satisfy a 'seek=' request.  If we can't read
          the file, go ahead with write-only access; it might work.  */
-      if ((! seek_records
+      if ((! seeking
            || ifd_reopen (STDOUT_FILENO, output_file, O_RDWR | opts, perms) < 0)
           && (ifd_reopen (STDOUT_FILENO, output_file, O_WRONLY | opts, perms)
               < 0))
         error (EXIT_FAILURE, errno, _("failed to open %s"),
                quoteaf (output_file));
 
-      if (seek_records != 0 && !(conversions_mask & C_NOTRUNC))
+      if (seeking && !(conversions_mask & C_NOTRUNC))
         {
           if (iftruncate (STDOUT_FILENO, size) != 0)
             {
@@ -2505,20 +2521,17 @@ main (int argc, char **argv)
               int ftruncate_errno = errno;
               struct stat stdout_stat;
               if (ifstat (STDOUT_FILENO, &stdout_stat) != 0)
-                {
-                  diagnose (errno, _("cannot fstat %s"), quoteaf (output_file));
-                  exit_status = EXIT_FAILURE;
-                }
+                error (EXIT_FAILURE, errno, _("cannot fstat %s"),
+                       quoteaf (output_file));
               else if (S_ISREG (stdout_stat.st_mode)
                        || S_ISDIR (stdout_stat.st_mode)
                        || S_TYPEISSHM (&stdout_stat))
                 {
                   intmax_t isize = size;
-                  diagnose (ftruncate_errno,
-                            _("failed to truncate to %jd bytes"
-                              " in output file %s"),
-                            isize, quoteaf (output_file));
-                  exit_status = EXIT_FAILURE;
+                  error (EXIT_FAILURE, ftruncate_errno,
+                         _("failed to truncate to %jd bytes"
+                           " in output file %s"),
+                         isize, quoteaf (output_file));
                 }
             }
         }
@@ -2527,11 +2540,9 @@ main (int argc, char **argv)
   start_time = gethrxtime ();
   next_time = start_time + XTIME_PRECISION;
 
-  exit_status = dd_copy ();
-
+  int copy_status = dd_copy ();
   int sync_status = synchronize_output ();
-  if (sync_status)
-    exit_status = sync_status;
+  int exit_status = copy_status | sync_status;
 
   if (max_records == 0 && max_bytes == 0)
     {

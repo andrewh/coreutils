@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise ls --block-size and related options.
 
-# Copyright (C) 2011-2025 Free Software Foundation, Inc.
+# Copyright (C) 2011-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,9 +26,9 @@ mkdir sub
 cd sub
 
 for size in 1024 4096 262144; do
-  echo foo | dd conv=sync bs=$size >file$size || fail=1
+  echo foo | dd conv=sync bs=$size >file$size || framework_failure_
 done
-touch -d '2001-01-01 00:00' file* || fail=1
+touch -d '2001-01-01 00:00' file* || framework_failure_
 
 size_etc='s/[^ ]* *[^ ]* *//'
 
@@ -182,5 +182,55 @@ cat >exp <<'EOF'
 EOF
 
 compare exp out || fail=1
+
+# Ensure --size alignment with multi-byte grouping chars
+# which wasn't the case before coreutils v9.8
+cd sub
+for sizem in 1 10; do
+  echo foo |
+    dd conv=sync bs=$((sizem*1024*1024)) >file${sizem}M || framework_failure_
+done
+
+# If any of these unavailable, the C fallback should also be aligned
+for loc in sv_SE.UTF-8 $LOCALE_FR_UTF8; do
+
+  # Ensure we have a printable thousands separator
+  # This is not the case on FreeBSD 11/12 at least with NBSP
+  test $(LC_ALL=$loc ls -s1 --block-size=\'k file1M |
+         cut -dK -f1 | LC_ALL=$loc wc -L) = 5 || continue
+
+  test $(LC_ALL=$loc ls -s1 --block-size=\'k |
+         tail -n+2 | cut -dK -f1 |
+         while IFS= read size; do
+           printf '%s\n' "$size" | LC_ALL=$loc wc -L
+         done | uniq | wc -l) = 1 || fail=1
+done
+
+# A block that is only partly used still occupies a whole block,
+# so scaling an allocation to the block size rounds up.  The total
+# scales the sum of the allocations once, rather than adding up the
+# rounded per-file figures.
+cd .. || framework_failure_
+mkdir round || framework_failure_
+for f in a b c; do
+  echo x > round/$f || framework_failure_
+done
+total=0
+suitable=1
+for f in a b c; do
+  bytes=$(stat -c '%b * %B' round/$f) || framework_failure_
+  bytes=$(($bytes))
+  # An allocation that is a whole number of blocks, or none at all,
+  # cannot tell rounding up from rounding down.
+  test $bytes -ne 0 && test $(($bytes % 1000)) -ne 0 || suitable=0
+  total=$(($total + $bytes))
+  printf '%d %s\n' $((($bytes + 999) / 1000)) $f >> exp-round
+done
+if test $suitable = 1; then
+  { printf 'total %d\n' $((($total + 999) / 1000)) && cat exp-round; } \
+    > exp || framework_failure_
+  ls -s --block-size=1000 round > out || fail=1
+  compare exp out || fail=1
+fi
 
 Exit $fail

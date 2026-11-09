@@ -1,5 +1,5 @@
 /* chown, chgrp -- change user and group ownership of files
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,20 +53,20 @@ enum
 
 static struct option const long_options[] =
 {
-  {"recursive", no_argument, nullptr, 'R'},
-  {"changes", no_argument, nullptr, 'c'},
-  {"dereference", no_argument, nullptr, DEREFERENCE_OPTION},
-  {"from", required_argument, nullptr, FROM_OPTION},
-  {"no-dereference", no_argument, nullptr, 'h'},
-  {"no-preserve-root", no_argument, nullptr, NO_PRESERVE_ROOT},
-  {"preserve-root", no_argument, nullptr, PRESERVE_ROOT},
-  {"quiet", no_argument, nullptr, 'f'},
-  {"silent", no_argument, nullptr, 'f'},
-  {"reference", required_argument, nullptr, REFERENCE_FILE_OPTION},
-  {"verbose", no_argument, nullptr, 'v'},
+  {"recursive", no_argument, NULL, 'R'},
+  {"changes", no_argument, NULL, 'c'},
+  {"dereference", no_argument, NULL, DEREFERENCE_OPTION},
+  {"from", required_argument, NULL, FROM_OPTION},
+  {"no-dereference", no_argument, NULL, 'h'},
+  {"no-preserve-root", no_argument, NULL, NO_PRESERVE_ROOT},
+  {"preserve-root", no_argument, NULL, PRESERVE_ROOT},
+  {"quiet", no_argument, NULL, 'f'},
+  {"silent", no_argument, NULL, 'f'},
+  {"reference", required_argument, NULL, REFERENCE_FILE_OPTION},
+  {"verbose", no_argument, NULL, 'v'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -95,41 +95,55 @@ Change the group of each FILE to GROUP.\n\
 With --reference, change the group of each FILE to that of RFILE.\n\
 \n\
 "), stdout);
-      fputs (_("\
-  -c, --changes          like verbose but report only when a change is made\n\
-  -f, --silent, --quiet  suppress most error messages\n\
-  -v, --verbose          output a diagnostic for every file processed\n\
-"), stdout);
-      fputs (_("\
-      --dereference      affect the referent of each symbolic link (this is\n\
-                         the default), rather than the symbolic link itself\n\
-  -h, --no-dereference   affect symbolic links instead of any referenced file\n\
-"), stdout);
-      fputs (_("\
-                         (useful only on systems that can change the\n\
-                         ownership of a symlink)\n\
-"), stdout);
-      fputs (_("\
+      oputs (_("\
+  -c, --changes\n\
+         like verbose but report only when a change is made\n\
+"));
+      oputs (_("\
+  -f, --silent, --quiet\n\
+         suppress most error messages\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         output a diagnostic for every file processed\n\
+"));
+      oputs (_("\
+      --dereference\n\
+         affect the referent of each symbolic link (this is\n\
+         the default), rather than the symbolic link itself\n\
+"));
+      oputs (_("\
+  -h, --no-dereference\n\
+         affect symbolic links instead of any referenced file;\n\
+         useful only on systems that can change the ownership of a symlink\n\
+"));
+      oputs (_("\
       --from=CURRENT_OWNER:CURRENT_GROUP\n\
-                         change the ownership of each file only if\n\
-                         its current owner and/or group match those specified\n\
-                         here. Either may be omitted, in which case a match\n\
-                         is not required for the omitted attribute\n\
-"), stdout);
-      fputs (_("\
-      --no-preserve-root  do not treat '/' specially (the default)\n\
-      --preserve-root    fail to operate recursively on '/'\n\
-"), stdout);
-      fputs (_("\
-      --reference=RFILE  use RFILE's ownership rather than specifying values.\n\
-                         RFILE is always dereferenced if a symbolic link.\n\
-"), stdout);
-      fputs (_("\
-  -R, --recursive        operate on files and directories recursively\n\
-"), stdout);
+         change the ownership of each file only if its\n\
+         current owner and/or group match those specified here.\n\
+         Either may be omitted, in which case a match\n\
+         is not required for the omitted attribute\n\
+"));
+      oputs (_("\
+      --no-preserve-root\n\
+         do not treat '/' specially (the default)\n\
+"));
+      oputs (_("\
+      --preserve-root\n\
+         fail to operate recursively on '/'\n\
+"));
+      oputs (_("\
+      --reference=RFILE\n\
+         use RFILE's ownership rather than specifying values.\n\
+         RFILE is always dereferenced if a symbolic link.\n\
+"));
+      oputs (_("\
+  -R, --recursive\n\
+         operate on files and directories recursively\n\
+"));
       emit_symlink_recurse_options ("-P");
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       if (chown_mode == CHOWN_CHOWN)
         fputs (_("\
 \n\
@@ -165,9 +179,6 @@ main (int argc, char **argv)
 {
   bool preserve_root = false;
 
-  uid_t uid = -1;	/* Specified uid; -1 if not to be changed. */
-  gid_t gid = -1;	/* Specified gid; -1 if not to be changed. */
-
   /* Change the owner (group) of a file only if it has this uid (gid).
      -1 means there's no restriction.  */
   uid_t required_uid = -1;
@@ -181,8 +192,6 @@ main (int argc, char **argv)
   int dereference = -1;
 
   struct Chown_option chopt;
-  bool ok;
-  int optc;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -194,7 +203,8 @@ main (int argc, char **argv)
 
   chopt_init (&chopt);
 
-  while ((optc = getopt_long (argc, argv, "HLPRcfhv", long_options, nullptr))
+  int optc;
+  while ((optc = getopt_long (argc, argv, "HLPRcfhv", long_options, NULL))
          != -1)
     {
       switch (optc)
@@ -237,7 +247,7 @@ main (int argc, char **argv)
             bool warn;
             char const *e = parse_user_spec_warn (optarg,
                                                   &required_uid, &required_gid,
-                                                  nullptr, nullptr, &warn);
+                                                  NULL, NULL, &warn);
             if (e)
               error (warn ? 0 : EXIT_FAILURE, 0, "%s: %s", e, quote (optarg));
             break;
@@ -291,6 +301,9 @@ main (int argc, char **argv)
       usage (EXIT_FAILURE);
     }
 
+  uid_t uid = -1;	/* Specified uid; -1 if not to be changed.  */
+  gid_t gid = -1;	/* Specified gid; -1 if not to be changed.  */
+
   if (reference_file)
     {
       struct stat ref_stats;
@@ -339,15 +352,15 @@ main (int argc, char **argv)
     {
       static struct dev_ino dev_ino_buf;
       chopt.root_dev_ino = get_root_dev_ino (&dev_ino_buf);
-      if (chopt.root_dev_ino == nullptr)
+      if (chopt.root_dev_ino == NULL)
         error (EXIT_FAILURE, errno, _("failed to get attributes of %s"),
                quoteaf ("/"));
     }
 
   bit_flags |= FTS_DEFER_STAT;
-  ok = chown_files (argv + optind, bit_flags,
-                    uid, gid,
-                    required_uid, required_gid, &chopt);
+  bool ok = chown_files (argv + optind, bit_flags,
+                         uid, gid,
+                         required_uid, required_gid, &chopt);
 
   main_exit (ok ? EXIT_SUCCESS : EXIT_FAILURE);
 }

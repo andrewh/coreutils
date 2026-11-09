@@ -1,7 +1,7 @@
 #!/bin/sh
-# Test stat -c%m
+# Test stat interactions with mounts
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,5 +24,16 @@ case "$stat_mnt" in
   /*) ;;
   *) fail=1;;
 esac
+
+# Ensure stat works without mounting /proc
+hide_proc() {
+  unshare -rm $SHELL -c 'mount -t tmpfs tmpfs /proc && "$@"' -- "$@"
+}
+if hide_proc stat --version; then
+  hide_proc mount; ret=$?
+  if test "$ret" = 2; then  # Avoid segfaults under unshare on Guix
+    hide_proc stat -c '0%#a' / || fail=1
+  fi
+fi
 
 Exit $fail

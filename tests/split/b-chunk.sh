@@ -1,7 +1,7 @@
 #!/bin/sh
 # test splitting into 3 chunks
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -87,5 +87,12 @@ for file in input /proc/version /sys/kernel/profiling; do
     test -f xad && fail=1
   done
 done
+
+# A leading '+' is accepted in the number of chunks.
+rm -f x?? || framework_failure_
+printf 'a\nb\n' > in || framework_failure_
+split -n +2 in || fail=1
+test -f xaa && test -f xab || fail=1
+test -f xac && fail=1
 
 Exit $fail

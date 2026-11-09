@@ -1,5 +1,5 @@
 /* mknod -- make special files
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include <selinux/label.h>
 
 #include "system.h"
+#include "fcntl--.h"
 #include "modechange.h"
 #include "quote.h"
 #include "selinux.h"
@@ -37,10 +38,10 @@
 static struct option const longopts[] =
 {
   {GETOPT_SELINUX_CONTEXT_OPTION_DECL},
-  {"mode", required_argument, nullptr, 'm'},
+  {"mode", required_argument, NULL, 'm'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -58,16 +59,21 @@ Create the special file NAME of the given TYPE.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -m, --mode=MODE    set file permission bits to MODE, not a=rw - umask\n\
-"), stdout);
-      fputs (_("\
-  -Z                   set the SELinux security context to default type\n\
-      --context[=CTX]  like -Z, or if CTX is specified then set the SELinux\n\
-                         or SMACK security context to CTX\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -m, --mode=MODE\n\
+         set file permission bits to MODE, not a=rw - umask\n\
+"));
+      oputs (_("\
+  -Z\n\
+         set the SELinux security context to default type\n\
+"));
+      oputs (_("\
+      --context[=CTX]\n\
+         like -Z, or if CTX is specified then set the\n\
+         SELinux or SMACK security context to CTX\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 Both MAJOR and MINOR must be specified when TYPE is b, c, or u, and they\n\
@@ -90,13 +96,9 @@ otherwise, as decimal.  TYPE may be:\n\
 int
 main (int argc, char **argv)
 {
-  mode_t newmode;
-  char const *specified_mode = nullptr;
-  int optc;
-  size_t expected_operands;
-  mode_t node_type;
-  char const *scontext = nullptr;
-  struct selabel_handle *set_security_context = nullptr;
+  char const *specified_mode = NULL;
+  char const *scontext = NULL;
+  struct selabel_handle *set_security_context = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -106,7 +108,8 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "m:Z", longopts, nullptr)) != -1)
+  int optc;
+  while ((optc = getopt_long (argc, argv, "m:Z", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -126,7 +129,7 @@ main (int argc, char **argv)
               else
                 {
                   set_security_context = selabel_open (SELABEL_CTX_FILE,
-                                                       nullptr, 0);
+                                                       NULL, 0);
                   if (! set_security_context)
                     error (0, errno, _("warning: ignoring --context"));
                 }
@@ -145,16 +148,15 @@ main (int argc, char **argv)
         }
     }
 
-  newmode = MODE_RW_UGO;
+  mode_t newmode = MODE_RW_UGO;
   if (specified_mode)
     {
-      mode_t umask_value;
       struct mode_change *change = mode_compile (specified_mode);
       if (!change)
         error (EXIT_FAILURE, 0, _("invalid mode"));
-      umask_value = umask (0);
+      mode_t umask_value = umask (0);
       umask (umask_value);
-      newmode = mode_adjust (newmode, false, umask_value, change, nullptr);
+      newmode = mode_adjust (newmode, false, umask_value, change, NULL);
       free (change);
       if (newmode & ~S_IRWXUGO)
         error (EXIT_FAILURE, 0,
@@ -164,9 +166,9 @@ main (int argc, char **argv)
   /* If the number of arguments is 0 or 1,
      or (if it's 2 or more and the second one starts with 'p'), then there
      must be exactly two operands.  Otherwise, there must be four.  */
-  expected_operands = (argc <= optind
-                       || (optind + 1 < argc && argv[optind + 1][0] == 'p')
-                       ? 2 : 4);
+  int expected_operands = (argc <= optind
+                           || (optind + 1 < argc && argv[optind + 1][0] == 'p')
+                           ? 2 : 4);
 
   if (argc - optind < expected_operands)
     {
@@ -207,6 +209,8 @@ main (int argc, char **argv)
   /* Only check the first character, to allow mnemonic usage like
      'mknod /dev/rst0 character 18 0'. */
 
+  mode_t node_type;
+  dev_t device;
   switch (argv[optind + 1][0])
     {
     case 'b':			/* 'block' or 'buffered' */
@@ -229,16 +233,15 @@ main (int argc, char **argv)
     block_or_character:
       {
         char const *s_major = argv[optind + 2];
-        char const *s_minor = argv[optind + 3];
-        uintmax_t i_major, i_minor;
-        dev_t device;
-
-        if (xstrtoumax (s_major, nullptr, 0, &i_major, "") != LONGINT_OK
+        uintmax_t i_major;
+        if (xstrtoumax (s_major, NULL, 0, &i_major, "") != LONGINT_OK
             || i_major != (major_t) i_major)
           error (EXIT_FAILURE, 0,
                  _("invalid major device number %s"), quote (s_major));
 
-        if (xstrtoumax (s_minor, nullptr, 0, &i_minor, "") != LONGINT_OK
+        char const *s_minor = argv[optind + 3];
+        uintmax_t i_minor;
+        if (xstrtoumax (s_minor, NULL, 0, &i_minor, "") != LONGINT_OK
             || i_minor != (minor_t) i_minor)
           error (EXIT_FAILURE, 0,
                  _("invalid minor device number %s"), quote (s_minor));
@@ -249,20 +252,11 @@ main (int argc, char **argv)
           error (EXIT_FAILURE, 0, _("invalid device %s %s"),
                  s_major, s_minor);
 #endif
-
-        if (set_security_context)
-          defaultcon (set_security_context, argv[optind], node_type);
-
-        if (mknod (argv[optind], newmode | node_type, device) != 0)
-          error (EXIT_FAILURE, errno, "%s", quotef (argv[optind]));
       }
       break;
 
     case 'p':			/* 'pipe' */
-      if (set_security_context)
-        defaultcon (set_security_context, argv[optind], S_IFIFO);
-      if (mkfifo (argv[optind], newmode) != 0)
-        error (EXIT_FAILURE, errno, "%s", quotef (argv[optind]));
+      node_type = S_IFIFO;
       break;
 
     default:
@@ -270,9 +264,54 @@ main (int argc, char **argv)
       usage (EXIT_FAILURE);
     }
 
-  if (specified_mode && lchmod (argv[optind], newmode) != 0)
-    error (EXIT_FAILURE, errno, _("cannot set permissions of %s"),
-           quoteaf (argv[optind]));
+  char const *const name = argv[optind];
 
-  return EXIT_SUCCESS;
+  if (set_security_context)
+    defaultcon (set_security_context, name, node_type);
+
+  int dirfd = AT_FDCWD;
+  char const *relname = name;
+  char const *base;
+
+  /* When a mode is specified, open a file descriptor to the parent
+     and create the special file relative to that.  This allows us to
+     call lchmodat instead of lchmod, which would follow leading path
+     components in NAME.  The lchmodat call is necessary to set
+     the mode in the presence of default ACLs, where we may have
+     mode different than the one the user specified without it.  */
+  if (specified_mode && (base = last_component (name)) != name && *base)
+    {
+      char *dir = dir_name (name);
+
+      dirfd = open (dir, O_PATHSEARCH | O_DIRECTORY);
+      free (dir);
+
+      /* We lie about the error here, since the reason for opening the
+         parent is not intuitive, and a mkfifo(3) or mknodat(2) call
+         would most likely fail for the same reason.  */
+      if (dirfd < 0)
+        error (EXIT_FAILURE, errno, "%s", quotef (name));
+
+      relname = base;
+    }
+
+  bool ok = true;
+  if ((node_type == S_IFIFO
+       ? mkfifoat (dirfd, relname, newmode)
+       : mknodat (dirfd, relname, newmode | node_type, device)) < 0)
+    {
+      error (0, errno, "%s", quotef (name));
+      ok = false;
+    }
+  else if (specified_mode && lchmodat (dirfd, relname, newmode) < 0)
+    {
+      error (EXIT_FAILURE, errno, _("cannot set permissions of %s"),
+             quoteaf (name));
+      ok = false;
+    }
+
+  if (dirfd != AT_FDCWD)
+    close (dirfd);
+
+  return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

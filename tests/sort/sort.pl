@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,6 +34,12 @@ my $mb_locale = $ENV{LOCALE_FR_UTF8};
 my $normalize_filename = {ERR_SUBST => 's/^$prog: .*?:/$prog: -:/'};
 
 my $no_file = "$prog: cannot read: no-file: No such file or directory\n";
+
+# Lines much longer than the buffer, in an unsorted order, so that
+# an external sort writes them to temporary files and merges them back.
+my @long_lines = map { sprintf ("%04d", $_ * 7 % 24) . 'x' x 19996 } 0..23;
+my $long_in = join ('', map { "$_\n" } @long_lines);
+my $long_out = join ('', map { "$_\n" } sort @long_lines);
 
 my @Tests =
 (
@@ -371,10 +377,23 @@ my @Tests =
  {ERR=>"$prog: options '-cC' are incompatible\n"}],
 ["incompat7", qw(--sort=random -n), {EXIT=>2},
  {ERR=>"$prog: options '-nR' are incompatible\n"}],
+["incompat8", qw(-o /dev/null --debug), {EXIT=>2},
+ {ERR=>"$prog: options '-o --debug' are incompatible\n"}],
 
 # -t '\0' is accepted, as of coreutils-5.0.91
 ['nul-tab', "-k2,2 -t '\\0'",
  {IN=>"a\0z\01\nb\0y\02\n"}, {OUT=>"b\0y\02\na\0z\01\n"}],
+
+# Differing -t separators are rejected, while repeating one is accepted.
+['tab-dup1', '-t: -t: -k2', {IN=>"b:1\na:2\n"}, {OUT=>"b:1\na:2\n"}],
+['tab-dup2', "-t '\\0' -t '\\0' -k2",
+ {IN=>"a\0z\nb\0y\n"}, {OUT=>"b\0y\na\0z\n"}],
+['tab-incompat1', '-t@ -t!', {EXIT=>2},
+ {ERR=>"$prog: incompatible tabs\n"}],
+['tab-incompat2', '--field-separator=@ -t !', {EXIT=>2},
+ {ERR=>"$prog: incompatible tabs\n"}],
+['tab-incompat3', "-t '\\0' -t@", {EXIT=>2},
+ {ERR=>"$prog: incompatible tabs\n"}],
 
 # fields > SIZE_MAX are silently interpreted as SIZE_MAX
 ["bigfield1", "-k $limits->{UINTMAX_OFLOW}",
@@ -391,6 +410,7 @@ my @Tests =
 # Exercise the code that enlarges the line buffer.
 ['realloc-buf', '-S1', {IN=>'a'x4000 ."\n"}, {OUT=>'a'x4000 ."\n"}],
 ['realloc-buf-2', '-S1', {IN=>'a'x5 ."\n"}, {OUT=>'a'x5 ."\n"}],
+['long-lines-ext', '-S1K', {IN=>$long_in}, {OUT=>$long_out}],
 
 ["sort-numeric", '--sort=numeric', {IN=>".01\n0\n"}, {OUT=>"0\n.01\n"}],
 ["sort-gennum", '--sort=general-numeric',
@@ -415,6 +435,38 @@ my @Tests =
 ['zero-1', '-z', {IN=>"2\0001\000"}, {OUT=>"1\0002\000"}],
 ['zero-2', '-z -k2,2', {IN=>"1\n2\0002\n1\000"}, {OUT=>"2\n1\0001\n2\000"}],
 ['zero-3', '-zb -k2,2', {IN=>"1\n\n2\0002\n1\0"}, {OUT=>"2\n1\0001\n\n2\0"}],
+
+# Invalid --parallel arguments.
+['invalid-parallel-1', '--parallel -1', {IN=>""},  {EXIT=>2},
+ {ERR=>"$prog: invalid --parallel argument '-1'\n"}],
+['invalid-parallel-2', '--parallel a', {IN=>""},  {EXIT=>2},
+ {ERR=>"$prog: invalid --parallel argument 'a'\n"}],
+
+# Test that non-blank spaces aren't treated as blank.
+['nonblank-sep-k1', '-k2', {IN=>"a\f\nb\n"}, {OUT=>"a\f\nb\n"}],
+['nonblank-leading-n1', '-n', {IN=>"a\n\f1\n"}, {OUT=>"\f1\na\n"}],
+['nonblank-leading-d1', '-d', {IN=>"\fb\na\n"}, {OUT=>"a\n\fb\n"}],
+
+# A key's own 'r' applies even when the key covers the whole line,
+# and a key with options of its own does not inherit the global -r.
+['key-own-r-1', '-k1r', {IN=>"a\nb\n"}, {OUT=>"b\na\n"}],
+['key-own-r-2', '-k1.1r', {IN=>"a\nb\n"}, {OUT=>"b\na\n"}],
+['key-own-r-3', '-f -k1fr', {IN=>"a\nb\n"}, {OUT=>"b\na\n"}],
+['key-own-r-4', '-c -k1r', {IN=>"a\nb\n"}, {EXIT=>1},
+ {ERR=>"$prog: -:2: disorder: b\n"}, $normalize_filename],
+['key-own-r-5', '-f -r -k1f', {IN=>"b\na\n"}, {OUT=>"a\nb\n"}],
+['key-own-r-6', '-r -n -k1n', {IN=>"10\n2\n"}, {OUT=>"2\n10\n"}],
+
+# Only space and tab are skipped by -b and -M; a leading \f or \r
+# stays part of the key.
+['nonblank-leading-b1', '-k1b', {IN=>"a\n\fb\n"}, {OUT=>"\fb\na\n"}],
+['nonblank-leading-b2', '-k1b', {IN=>"a\n\rb\n"}, {OUT=>"\rb\na\n"}],
+['nonblank-leading-M1', '-M', {IN=>"\fFEB\nJAN\n"}, {OUT=>"\fFEB\nJAN\n"}],
+['nonblank-leading-M2', '-M', {IN=>"\rFEB\nJAN\n"}, {OUT=>"\rFEB\nJAN\n"}],
+['blank-leading-M1', '-M', {IN=>" \tFEB\nJAN\n"}, {OUT=>"JAN\n \tFEB\n"}],
+
+# An operand after "--" is a file name, even if it looks like -t.
+['dash-dash-t', '--', {IN=>{'-t='=>"b\na\n"}}, {OUT=>"a\nb\n"}],
 );
 
 # Add _POSIX2_VERSION=199209 to the environment of each test
@@ -436,7 +488,9 @@ foreach my $t (@Tests)
 # due to a race condition about 1 in 20 times.
 # Remove the IN_PIPE version of the "output-is-input" test above.
 # The others aren't susceptible because they have three inputs each.
-@Tests = grep {$_->[0] ne 'output-is-input.p'} @Tests;
+# Likewise, the IN_PIPE version of "dash-dash-t" has no file named -t=.
+@Tests = grep {$_->[0] ne 'output-is-input.p'
+               && $_->[0] ne 'dash-dash-t.p'} @Tests;
 
 my $save_temps = $ENV{DEBUG};
 my $verbose = $ENV{VERBOSE};

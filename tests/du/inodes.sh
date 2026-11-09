@@ -1,7 +1,7 @@
 #!/bin/sh
 # exercise du's --inodes option
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -136,5 +136,5 @@ grep ' ineffective ' err >/dev/null || { fail=1; cat out err; }
 
 # Ensure that --inodes is mentioned in the usage.
 du --help > out || fail=1
-grep ' --inodes ' out >/dev/null || { fail=1; cat out; }
+grep -- '--inodes' out >/dev/null || { fail=1; cat out; }
 Exit $fail

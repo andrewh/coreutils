@@ -3,7 +3,7 @@
 # Ensure that seq prints exactly two numbers for a 2-number integral
 # range at the limit of floating point precision.
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,7 +40,14 @@ a=$INTMAX_MAX
 b=$INTMAX_OFLOW
 
 seq $a $b > out || fail=1
-printf "$a\n$b\n" > exp || fail=1
+printf "$a\n$b\n" > exp || framework_failure_
+compare exp out || fail=1
+
+# Test case fixed in v9.8
+# I.e., All digit start, with non digits end
+a=18446744073709551617
+seq $a inf | head -n1 > out || fail=1
+printf "$a\n" > exp || framework_failure_
 compare exp out || fail=1
 
 Exit $fail

@@ -1,5 +1,5 @@
 /* operand2sig.c -- common function for parsing signal specifications
-   Copyright (C) 2008-2025 Free Software Foundation, Inc.
+   Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,8 +68,7 @@ operand2sig (char const *operand)
       /* Convert signal to upper case in the C locale, not in the
          current locale.  Don't assume ASCII; it might be EBCDIC.  */
       char *upcased = xstrdup (operand);
-      char *p;
-      for (p = upcased; *p; p++)
+      for (char *p = upcased; *p; p++)
         if (strchr ("abcdefghijklmnopqrstuvwxyz", *p))
           *p += 'A' - 'a';
 

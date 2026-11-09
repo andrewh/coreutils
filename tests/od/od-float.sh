@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test od on floating-point values.
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,14 +56,14 @@ case $3,$4 in
 esac
 
 # Ensure od doesn't crash as it did on glibc <= 2.5:
-# https://sourceware.org/bugzilla/show_bug.cgi?id=4586
+# https://sourceware.org/PR4586
 set x $(printf 00000000ff000000 | tr 0f '\000\377' | od -t fL) || fail=1
 # With coreutils <= 8.7 we used to print "nan" for the above invalid value.
 # However since v8.7-22-ga71c22f we deferred to the system printf routines
 # through the use of the ftoastr module.  So the following check would only
 # be valid on x86_64 if we again handle the conversion internally or
 # if this glibc bug is resolved:
-# https://sourceware.org/bugzilla/show_bug.cgi?id=17661
+# https://sourceware.org/PR17661
 #case "$*" in
 #*nan*) ;;
 #*) fail=1;;
@@ -89,5 +89,31 @@ else
   returns_ 1 od -tfB /dev/null 2>err || fail=1
   compare exp_err err || fail=1
 fi
+
+# Ensure -t f defaults to double precision (8 bytes), not float (4 bytes).
+env printf '\x00\x00\x80\x3f\x00\x00\x00\x40' |
+od -An -t f --endian=little > out || fail=1
+printf '        2.000000473111868\n' > exp || framework_failure_
+compare exp out || fail=1
+
+env printf '\x00\x00\x80\x3f\x00\x00\x00\x40' |
+od -An -t fD --endian=little > out || fail=1
+compare exp out || fail=1
+
+env printf '\x00\x00\x80\x3f\x00\x00\x00\x40' |
+od -An -t fF --endian=little > out || fail=1
+printf '               1               2\n' > exp || framework_failure_
+compare exp out || fail=1
+
+# Ensure %g-style output with two-digit exponents.
+env printf '\x00\x00\x80\x3f\x0a\xd7\x23\x3c\xac\xc5\x27\x37\x00\x00\x20\x41' |
+od -An -t f4 --endian=little > out || fail=1
+printf '%16s%16s%16s%16s\n' 1 0.01 1e-05 10 > exp || framework_failure_
+compare exp out || fail=1
+
+env printf '\x9a\x99\x99\x99\x99\x99\xb9\x3f' |
+od -An -t f8 --endian=little > out || fail=1
+printf '%25s\n' 0.1 > exp || framework_failure_
+compare exp out || fail=1
 
 Exit $fail

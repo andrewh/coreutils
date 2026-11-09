@@ -1,7 +1,7 @@
 #!/bin/sh
 # make sure chgrp --from=... works
 
-# Copyright (C) 2023-2025 Free Software Foundation, Inc.
+# Copyright (C) 2023-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ require_root_
 
 touch f || framework_failure_
 
-chgrp -R --preserve-root 1 f
+chgrp -R --preserve-root +1 f
 
 # Make sure the owner and group are 0 and 1 respectively.
 set _ $(ls -n f); shift; test ":$4" = ':1' || fail=1
@@ -30,7 +30,7 @@ set _ $(ls -n f); shift; test ":$4" = ':1' || fail=1
 # Make sure the correct diagnostic is output
 # Note we output a name even though an id was specified.
 chgrp -v --from=42 43 f > out || fail=1
-printf "group of 'f' retained as $(id -nu 1)\n" > exp
+printf "group of 'f' retained as $(id -nu 1 || printf 1)\n" > exp
 compare exp out || fail=1
 
 chgrp --from=:1 010 f || fail=1

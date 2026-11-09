@@ -1,7 +1,7 @@
 #!/bin/sh
 # Make sure stty can parse most of its options - in pairs [expensive].
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ stty $(cat $saved_state) || fail=1
 # Don't depend on terminal width.  Put each option on its own line,
 # remove all non-boolean ones, remove 'parenb' and 'cread' explicitly,
 # then remove any leading hyphens.
-sed_del='/^speed/d;/^rows/d;/^columns/d;/ = /d;s/parenb//;s/cread//'
+sed_del='/^[io]*speed/d;/^rows/d;/^columns/d;/ = /d;s/parenb//;s/cread//'
 options=$(stty -a | tr -s ';' '\n' | sed "s/^ //;$sed_del;s/-//g")
 
 # Take them in pairs, with and without the leading '-'.

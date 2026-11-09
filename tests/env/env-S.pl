@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test 'env -S' feature
 
-# Copyright (C) 2018-2025 Free Software Foundation, Inc.
+# Copyright (C) 2018-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,6 +27,19 @@ $env =~ m!^([-+\@\w./]+)$!
   or CuSkip::skip "unusual absolute builddir name; skipping this test\n";
 $env = $1;
 
+# We may depend on a library found in LD_LIBRARY_PATH, or an equivalent
+# environment variable.  Skip the test if it is set since unsetting it may
+# prevent us from running commands.
+foreach my $var (qw(LD_LIBRARY_PATH LD_32_LIBRARY_PATH DYLD_LIBRARY_PATH
+                    LIBPATH))
+  {
+    if (exists $ENV{$var})
+      {
+        CuSkip::skip ("programs may depend on $var being set; "
+                      . "skipping this test\n");
+      }
+  }
+
 # Turn off localization of executable's output.
 @ENV{qw(LANGUAGE LANG LC_ALL)} = ('C') x 3;
 
@@ -42,6 +55,9 @@ exists $ENV{$cf} and $env .= " -u$cf";
 # Likewise for these GNU/Hurd env vars
 $cf = 'LD_ORIGIN_PATH';
 exists $ENV{$cf} and $env .= " -u$cf";
+
+# Turn off variable quoting on output
+$env = "QUOTING_STYLE=literal $env -uQUOTING_STYLE";
 
 my @Tests =
     (
@@ -147,6 +163,16 @@ my @Tests =
      ['v9', q[-i -S'A="${F_OO}" ]."$env'",   {ENV=>"F_OO=BAR"}, {OUT=>"A=BAR"}],
      ['v10', q[-i -S'A="${FOO1}" ]."$env'",  {ENV=>"FOO1=BAR"}, {OUT=>"A=BAR"}],
 
+     # An unset variable on its own adds no argument,
+     # but next to other text or inside quotes, the word is kept.
+     ['unset1', q[-S'printf "[%s]\n" a ${UNSET_VAR}'],     {OUT=>"[a]"}],
+     ['unset2', q[-S'${UNSET_VAR} printf "%s\n" hi'],      {OUT=>"hi"}],
+     ['unset3', q[-S'printf "[%s]\n" a ${UNSET_VAR}#c d'], {OUT=>"[a]"}],
+     ['unset4', q[-S'printf "[%s]\n" a ${UNSET_VAR}\_b'],  {OUT=>"[a]\n[b]"}],
+     ['unset5', q[-S'printf "[%s]\n" a ${UNSET_VAR}\c d'], {OUT=>"[a]"}],
+     ['unset6', q[-S'printf "[%s]\n" x${UNSET_VAR} "${UNSET_VAR}"'],
+      {OUT=>"[x]\n[]"}],
+
      # Test end-of-string '#" and '\c'
      ['d1', q[-i -S'A=B #C=D'    ]."$env",  {OUT=>"A=B"}],
      ['d2', q[-i -S'#A=B C=D'   ]."$env",   {OUT=>""}],
@@ -213,16 +239,17 @@ my @Tests =
      ['err5', q[-S'A=B\\q'], {EXIT=>125},
       {ERR=>"$prog: invalid sequence '\\q' in -S\n"}],
      ['err6', q[-S'A=$B'], {EXIT=>125},
-      {ERR=>"$prog: only \${VARNAME} expansion is supported, error at: \$B\n"}],
+      {ERR=>"$prog: only \${VARNAME} expansion is supported, " .
+           "error at: '\$B'\n"}],
      ['err7', q[-S'A=${B'], {EXIT=>125},
       {ERR=>"$prog: only \${VARNAME} expansion is supported, " .
-           "error at: \${B\n"}],
+           "error at: '\${B'\n"}],
      ['err8', q[-S'A=${B%B}'], {EXIT=>125},
       {ERR=>"$prog: only \${VARNAME} expansion is supported, " .
-           "error at: \${B%B}\n"}],
+           "error at: '\${B%B}'\n"}],
      ['err9', q[-S'A=${9B}'], {EXIT=>125},
       {ERR=>"$prog: only \${VARNAME} expansion is supported, " .
-           "error at: \${9B}\n"}],
+           "error at: '\${9B}'\n"}],
 
      # Test incorrect shebang usage (extraneous whitespace).
      ['err_sp2', q['-v -S cat -n'], {EXIT=>125},
@@ -230,7 +257,7 @@ my @Tests =
             "env: use -[v]S to pass options in shebang lines\n" .
            "Try 'env --help' for more information.\n"}],
      ['err_sp3', q['-v	-S cat -n'], {EXIT=>125}, # embedded tab after -v
-      {ERR=>"env: invalid option -- '\t'\n" .
+      {ERR=>"env: invalid option -- '\\t'\n" .
             "env: use -[v]S to pass options in shebang lines\n" .
            "Try 'env --help' for more information.\n"}],
 

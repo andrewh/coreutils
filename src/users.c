@@ -1,5 +1,5 @@
 /* GNU's users.
-   Copyright (C) 1992-2025 Free Software Foundation, Inc.
+   Copyright (C) 1992-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,10 +42,9 @@ userid_compare (const void *v_a, const void *v_b)
 }
 
 static void
-list_entries_users (idx_t n, struct gl_utmp const *this)
+list_entries_users (idx_t n, STRUCT_UTMP const *this)
 {
   char **u = xinmalloc (n, sizeof *u);
-  idx_t i;
   idx_t n_entries = 0;
 
   while (n--)
@@ -64,14 +63,14 @@ list_entries_users (idx_t n, struct gl_utmp const *this)
 
   qsort (u, n_entries, sizeof (u[0]), userid_compare);
 
-  for (i = 0; i < n_entries; i++)
+  for (idx_t i = 0; i < n_entries; i++)
     {
       char c = (i < n_entries - 1 ? ' ' : '\n');
       fputs (u[i], stdout);
       putchar (c);
     }
 
-  for (i = 0; i < n_entries; i++)
+  for (idx_t i = 0; i < n_entries; i++)
     free (u[i]);
   free (u);
 }
@@ -83,7 +82,7 @@ static void
 users (char const *filename, int options)
 {
   idx_t n_users;
-  struct gl_utmp *utmp_buf;
+  STRUCT_UTMP *utmp_buf;
   options |= READ_UTMP_USER_PROCESS;
   if (read_utmp (filename, &n_users, &utmp_buf, options) != 0)
     error (EXIT_FAILURE, errno, "%s", quotef (filename));
@@ -107,8 +106,8 @@ If FILE is not specified, use %s.  %s as FILE is common.\n\
 \n\
 "),
               UTMP_FILE, WTMP_FILE);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -127,7 +126,7 @@ main (int argc, char **argv)
 
   parse_gnu_standard_options_only (argc, argv, PROGRAM_NAME, PACKAGE_NAME,
                                    Version, true, usage, AUTHORS,
-                                   (char const *) nullptr);
+                                   (char const *) NULL);
 
   switch (argc - optind)
     {

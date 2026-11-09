@@ -1,6 +1,6 @@
 /* Test the ISAAC or ISAAC64 pseudorandom number generator.
 
-   Copyright (C) 2010-2025 Free Software Foundation, Inc.
+   Copyright (C) 2010-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -576,12 +576,12 @@ main (int argc, char **argv)
   for (i = 0; i < sizeof expected / sizeof expected[0]; i++)
     {
       isaac_refill (&s, r);
-      ASSERT (memcmp (r, expected[i], sizeof r) == 0);
+      ASSERT (memeq (r, expected[i], sizeof r));
     }
 
   /* If invoked with a positive argument, run a benchmark;
      if with a negative, run a do-nothing benchmark.  */
-  for (iterations = argc <= 1 ? 0 : strtol (argv[1], nullptr, 10);
+  for (iterations = argc <= 1 ? 0 : strtol (argv[1], NULL, 10);
        iterations != 0;
        iterations += (iterations < 0 ? 1 : -1))
     if (0 <= iterations)

@@ -1,7 +1,7 @@
 #!/bin/sh
 # ensure that tail -F doesn't leak inotify resources
 
-# Copyright (C) 2015-2025 Free Software Foundation, Inc.
+# Copyright (C) 2015-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,11 +19,7 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ tail
 
-# Inotify not used on remote file systems
-require_local_dir_
-
-grep '^#define HAVE_INOTIFY 1' "$CONFIG_HEADER" >/dev/null \
-  || skip_ 'inotify required'
+require_inotify_supported_
 
 require_strace_ 'inotify_add_watch,inotify_rm_watch'
 
@@ -52,7 +48,7 @@ cleanup_fail()
 }
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill $pid 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 fastpoll='-s.1 --max-unchanged-stats=1'
 
@@ -103,6 +99,5 @@ for i in $(seq 2); do
     >out && >strace.out || framework_failure_ 'failed to reset output files'
 done
 
-cleanup_
 
 Exit $fail

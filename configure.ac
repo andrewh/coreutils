@@ -1,7 +1,7 @@
 # -*- autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-# Copyright (C) 1991-2025 Free Software Foundation, Inc.
+# Copyright (C) 1991-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,7 +35,8 @@ AC_CONFIG_SRCDIR([src/ls.c])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([lib/config.h:lib/config.hin])
 
-AM_INIT_AUTOMAKE([1.11.2 dist-xz color-tests parallel-tests subdir-objects])
+AM_INIT_AUTOMAKE([1.16.2 no-dist-gzip dist-xz dist-zstd color-tests
+                  parallel-tests subdir-objects])
 AM_SILENT_RULES([yes]) # make --enable-silent-rules the default.
 
 dnl POSIXCHECK is worthwhile for maintainers, but adds several seconds
@@ -63,8 +64,12 @@ gl_SET_CRYPTO_CHECK_DEFAULT([auto-gpl-compat])
 gl_INIT
 coreutils_MACROS
 
+# Translate Gnulib msgids ourselves, instead of using the gnulib-l10n module.
+AC_DEFINE([GNULIB_TEXT_DOMAIN], [PACKAGE],
+  [The text domainname for Gnulib messages.])
+
 # These are safe, since 'sort', coreutils's only multithreaded app,
-# does not use the relevant modules.
+# does not use the relevant modules, or calls their code from one thread.
 AC_DEFINE([GNULIB_EXCLUDE_SINGLE_THREAD], [1],
   [Define to 1 if apps call 'exclude' functions from a single thread.])
 AC_DEFINE([GNULIB_REGEX_SINGLE_THREAD], [1],
@@ -105,16 +110,16 @@ AC_DEFUN([gl_GCC_VERSION_IFELSE],
 )
 
 AC_ARG_ENABLE([single-binary],
-  [AS_HELP_STRING([--enable-single-binary=[shebangs|symlinks]],
+  [AS_HELP_STRING([--enable-single-binary@<:@=shebangs|symlinks|hardlinks@:>@],
      [Compile all the tools in a single binary, reducing the overall size.
-      When compiled this way, shebangs (default when enabled) or symlinks are
-      installed for each tool that points to the single binary.])],
+      When compiled this way, shebangs (default when enabled), symlinks, or
+      hardlinks are installed for each tool, which point to a single binary])],
   [gl_single_binary=no ;
    case $enableval in
      yes) gl_single_binary=shebangs ;;
-     no|shebangs|symlinks) gl_single_binary=$enableval ;;
+     no|shebangs|symlinks|hardlinks) gl_single_binary=$enableval ;;
      *)      AC_MSG_ERROR([bad value $enableval for single-binary option.
-                           Options are: symlinks, shebangs, no.]) ;;
+                           Options are: hardlinks, symlinks, shebangs, no.]) ;;
    esac],
   [gl_single_binary=no]
 )
@@ -126,18 +131,20 @@ AC_ARG_ENABLE([single-binary-exceptions],
   [gl_single_binary_exceptions=$enableval],
   [gl_single_binary_exceptions=]
 )
-if test "$gl_single_binary" = 'symlinks'; then
+if test "$gl_single_binary" = 'symlinks' ||
+   test "$gl_single_binary" = 'hardlinks'; then
   if ! test "`echo ls | sed \"$program_transform_name\"`" = 'ls'; then
     AC_MSG_ERROR([program name transformations are not currently supported
-                  with --enable-single-binary=symlinks.])
+                  with --enable-single-binary=$gl_single_binary.])
   fi
 fi
 AM_CONDITIONAL([SINGLE_BINARY], [test "$gl_single_binary" != no])
+AM_CONDITIONAL([SINGLE_BINARY_HARD], [test "$gl_single_binary" = hardlinks])
 
 AC_ARG_ENABLE([bold-man-page-references],
   [AS_HELP_STRING([--disable-bold-man-page-references],
-     [When generating man pages, do not apply bold style around any
-      references like name(1) etc.])],
+     [When generating man pages, or displaying --help, do not apply bold style
+      around any references like name(1) or --option references etc.])],
   [gl_bold_manpages=yes ;
    case $enableval in
      no|yes) gl_bold_manpages=$enableval ;;
@@ -146,7 +153,34 @@ AC_ARG_ENABLE([bold-man-page-references],
    esac],
   [gl_bold_manpages=yes]
 )
+if test "$gl_bold_manpages" != no; then
+  AC_DEFINE([BOLD_MAN_REFS], [1], [Whether to markup references as bold])
+fi
 AM_CONDITIONAL([BOLD_MAN_REFS], [test "$gl_bold_manpages" != no])
+
+# When generating manual pages, include a "Report any translation bugs" line.
+AC_DEFINE([PACKAGE_L10N_BUGREPORT], ["https://translationproject.org/team/"],
+  [Define to the URL of your translation project.])
+
+AC_ARG_ENABLE([manual-url],
+  [AS_HELP_STRING([--enable-manual-url@<:@=<url>@:>@],
+     [When generating man pages, or displaying --help, generate hyperlinks
+      from each "--option" to <url>@%:@command-option.  A local file is
+      supported through a file:// URL.  The default URL used is:
+      $PACKAGE_URL/manual/$PACKAGE.html.])],
+  [case $enableval in
+     yes) gl_manual_url=default ;;
+     no) gl_manual_url='' ;;
+     *)  gl_manual_url="$enableval" ;;
+   esac],
+  [gl_manual_url=default]
+)
+if test x"$gl_manual_url" != x; then
+  if test "$gl_manual_url" = default; then
+    gl_manual_url=${PACKAGE_URL}manual/$PACKAGE.html
+  fi
+  AC_DEFINE_UNQUOTED([MANUAL_URL], ["$gl_manual_url"], [URL for full manual])
+fi
 
 AC_ARG_ENABLE([gcc-warnings],
   [AS_HELP_STRING([--enable-gcc-warnings@<:@=TYPE@:>@],
@@ -202,9 +236,15 @@ if test $gl_gcc_warnings != no; then
     nw="$nw -Wsuggest-attribute=noreturn"
   fi
 
+  # Suppress warnings to add pure or const attributes,
+  # as these are currently inaccurate and dangerous.
+  # See https://gcc.gnu.org/PR115237
+  nw="$nw -Wsuggest-attribute=pure"
+  nw="$nw -Wsuggest-attribute=const"
+
   # Using -Wstrict-overflow is a pain, but the alternative is worse.
   # For an example, see the code that provoked this report:
-  # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=33498
+  # https://gcc.gnu.org/PR33498
   # Code like that still infloops with gcc-4.6.0 and -O2.  Scary indeed.
 
   gl_MANYWARN_ALL_GCC([ws])
@@ -226,7 +266,7 @@ if test $gl_gcc_warnings != no; then
    #if !defined _FORTIFY_SOURCE && defined __OPTIMIZE__ && __OPTIMIZE__
    # define _FORTIFY_SOURCE 2
    #endif
-  ])
+])
   AC_DEFINE([GNULIB_PORTCHECK], [1], [enable some gnulib portability checks])
 
   # We use a slightly smaller set of warning options for lib/.
@@ -312,15 +352,6 @@ if test $utils_cv_localtime_cache = yes; then
   AC_DEFINE([LOCALTIME_CACHE], [1], [FIXME])
 fi
 
-# Find the library for dynamic loading of shared libraries.
-AC_SEARCH_LIBS([dlopen], [dl])
-AS_CASE([$ac_cv_search_dlopen],
-  [no | 'none required'],
-    [LIB_DL=],
-  [*],
-    [LIB_DL="$ac_cv_search_dlopen"])
-AC_SUBST([LIB_DL])
-
 # Should 'sort' link libcrypto dynamically?
 AS_CASE([$LIB_CRYPTO],
   [-lcrypto],
@@ -330,7 +361,7 @@ AS_CASE([$LIB_CRYPTO],
        [utils_cv_libcrypto_soname],
        [utils_cv_libcrypto_soname=no
         saved_LIBS=$LIBS
-        LIBS="$LIBS $LIB_DL $LIB_CRYPTO"
+        LIBS="$LIBS $LIBDL $LIB_CRYPTO"
         AC_LINK_IFELSE(
           [AC_LANG_PROGRAM(
              [[#include <dlfcn.h>
@@ -367,8 +398,8 @@ if test $ac_cv_func_getattrat = yes; then
   AC_SUBST([LIB_NVPAIR])
 fi
 
-# glibc >= 2.28 and linux kernel >= 4.11
-AC_CHECK_FUNCS([statx])
+# glibc >= 2.28 and linux kernel >= 4.11, Android API level 30.
+gl_CHECK_FUNCS_ANDROID([statx], [[#include <sys/stat.h>]])
 
 # SCO-ODT-3.0 is reported to need -los to link programs using initgroups
 AC_CHECK_FUNCS([initgroups])
@@ -528,6 +559,16 @@ fi
 CFLAGS=$ac_save_CFLAGS
 LDFLAGS=$ac_save_LDFLAGS
 ac_c_werror_flag=$cu_save_c_werror_flag
+
+# Don't build chcon and runcon if only have gnulib stubs
+# Honor --without-selinux to force disable
+# and --with-selinux to force enable.
+if test "$with_selinux" != no &&
+   { test "$with_selinux" = yes ||
+     test "$ac_cv_header_selinux_selinux_h" = yes; }; then
+  gl_ADD_PROG([optional_bin_progs], [chcon])
+  gl_ADD_PROG([optional_bin_progs], [runcon])
+fi
 
 # Test compiler support for half precision floating point types (for od)
 AC_MSG_CHECKING([IEEE 16 bit floating point])
@@ -742,6 +783,76 @@ AM_CONDITIONAL([USE_AVX2_WC_LINECOUNT],
 
 CFLAGS=$ac_save_CFLAGS
 
+CFLAGS="-mavx512bw -mavx512f $CFLAGS"
+AC_MSG_CHECKING([for avx512 intrinsics])
+AC_CACHE_VAL([utils_cv_avx512_intrinsic_exists],[
+AC_LINK_IFELSE(
+  [AC_LANG_SOURCE([[
+    #include <x86intrin.h>
+
+    int
+    main (void)
+    {
+      __m512i matches = _mm512_setzero_si512 ();
+      long long mask = _mm512_movepi8_mask (matches);
+      int lines = __builtin_popcountll (mask);
+      return (__builtin_cpu_supports ("avx512bw")
+              && __builtin_cpu_supports ("avx512f"));
+    }
+  ]])
+  ],[
+    utils_cv_avx512_intrinsic_exists=yes
+  ],[
+    utils_cv_avx512_intrinsic_exists=no
+  ])])
+AC_MSG_RESULT([$utils_cv_avx512_intrinsic_exists])
+if test $utils_cv_avx512_intrinsic_exists = yes; then
+  AC_DEFINE([USE_AVX512_WC_LINECOUNT], [1],
+            [Counting lines with AVX512 enabled])
+fi
+AM_CONDITIONAL([USE_AVX512_WC_LINECOUNT],
+               [test $utils_cv_avx512_intrinsic_exists = yes])
+
+CFLAGS=$ac_save_CFLAGS
+
+CFLAGS="-march=armv8-a+simd $CFLAGS"
+AC_MSG_CHECKING([for neon intrinsics])
+AC_CACHE_VAL([utils_cv_neon_intrinsic_exists],[
+AC_LINK_IFELSE(
+  [AC_LANG_SOURCE([[
+    #include <sys/auxv.h>
+    #include <asm/hwcap.h>
+    #include <arm_neon.h>
+
+    int
+    main (void)
+    {
+      unsigned char buffer[128] = {0};
+      const uint8x16_t endlines = vdupq_n_u8 ('\n');
+      int8x16_t acc0 = vdupq_n_s8 (0);
+      uint8x16_t v0 = vld1q_u8 (buffer);
+      int8x16_t c0 = vreinterpretq_s8_u8 (vceqq_u8 (v0, endlines));
+      acc0 = vaddq_s8 (acc0, c0);
+      int16x8_t a0 = vpaddlq_s8 (acc0);
+      int32x4_t b0 = vpaddlq_s16 (a0);
+      int64x2_t c1 = vpaddlq_s32 (b0);
+      int lines = vgetq_lane_s64 (c1, 0) + vgetq_lane_s64 (c1, 1);
+      return lines && 0 < (getauxval (AT_HWCAP) & HWCAP_ASIMD);
+    }
+  ]])
+  ],[
+    utils_cv_neon_intrinsic_exists=yes
+  ],[
+    utils_cv_neon_intrinsic_exists=no
+  ])])
+AC_MSG_RESULT([$utils_cv_neon_intrinsic_exists])
+if test $utils_cv_neon_intrinsic_exists = yes; then
+  AC_DEFINE([USE_NEON_WC_LINECOUNT], [1], [Counting lines with Neon enabled])
+fi
+AM_CONDITIONAL([USE_NEON_WC_LINECOUNT],
+               [test $utils_cv_neon_intrinsic_exists = yes])
+
+CFLAGS=$ac_save_CFLAGS
 ############################################################################
 
 dnl Autogenerated by the 'gen-lists-of-programs.sh' auxiliary script.
@@ -845,7 +956,6 @@ AC_SUBST([EXTRA_MANS])          AM_SUBST_NOTMAKE([EXTRA_MANS])
 AC_SUBST([built_programs], [$optional_bin_progs])
 
 AM_CONDITIONAL([CROSS_COMPILING], [test "$cross_compiling" = yes])
-
 ############################################################################
 
 # As long as "grep 'PRI[diouxX]' po/*.pot" reports matches in
@@ -861,4 +971,6 @@ AC_CONFIG_FILES(
   po/Makefile.in
   gnulib-tests/Makefile
   )
+AC_CONFIG_FILES([build-aux/makeinfo-wrapper.sh],
+                [chmod +x build-aux/makeinfo-wrapper.sh])
 AC_OUTPUT

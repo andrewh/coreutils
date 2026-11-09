@@ -1,7 +1,7 @@
 #!/bin/sh
 # Basic tests for "install".
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,6 +27,21 @@ rm -rf $dir $file || framework_failure_
 mkdir -p $dir || framework_failure_
 echo foo > $file || framework_failure_
 
+# Check 'install' when the given source and destination are the same.
+# Ensure that no backups are created.
+cat <<EOF >exp || framework_failure_
+ginstall: '$file' and '$file' are the same file
+EOF
+for backup in '' off t nil never; do
+  test -n "$backup" && backup=--backup=$backup
+  returns_ 1 ginstall $backup $file $file >out 2>err || fail=1
+  compare /dev/null out || fail=1
+  compare exp err || fail=1
+  set -- "$file"*
+  test -f "$1" || set --
+  test $# -eq 1 || fail=1
+done
+
 ginstall $file $dir || fail=1
 # Make sure the source file still exists.
 test -f $file || fail=1
@@ -39,17 +54,15 @@ dd2=dd2$EXEEXT
 
 just_built_dd=$abs_top_builddir/src/$dd
 
-test -r "$just_built_dd" \
-  || warn_ "WARNING!!! Your just-built dd binary, $just_built_dd
-is not readable, so skipping the remaining tests in this file."
+test -r "$just_built_dd" || skip_ "Missing $just_built_dd binary"
 
-cp "$just_built_dd" . || fail=1
-cp $dd $dd2 || fail=1
+cp "$just_built_dd" . &&
+cp $dd $dd2 || framework_failure_
 
 strip=-s
 if ! strip $dd2; then
-  ! test -e $abs_top_builddir/src/coreutils \
-    && warn_ "WARNING!!! Your strip command doesn't seem to work,
+  ! single_binary_build_ \
+    && warn_ "Warning: Your strip command doesn't seem to work,
 so skipping the test of install's --strip option."
   strip=
 fi
@@ -63,6 +76,11 @@ test -f $dd || fail=1
 # Make sure that the destination file has the requested permissions.
 mode=$(ls -l $dir/$dd|cut -b-10)
 test "$mode" = -r-xr-xr-x || fail=1
+
+# Ensure there are no issues with posix_spawnp() and large $PATHs
+# which we saw when initially changing from execvp() to posix_spawnp().
+PATH=$(printf '%4001s' '' | sed 's/\(.\{79\}\)./\1:/g'):$PATH \
+  ginstall $strip -c -m 555 $dd $dir || fail=1
 
 # These failed in coreutils CVS from 2004-06-25 to 2004-08-11.
 ginstall -d . || fail=1
@@ -154,5 +172,26 @@ if ! mkdir sub-ro/d; then
   returns_ 1 ginstall -d sub-ro/d 2>err || fail=1
   grep 'cannot create directory' err || { cat err; fail=1; }
 fi
+
+# Test install with --mode=+w (relative mode) ignores umask
+umask 0022 || framework_failure_
+touch file1 || framework_failure_
+ginstall file1 file2 --mode=+w || fail=1
+# Check that file2 has permissions --w--w--w-
+mode=$(ls -l file2|cut -b-10)
+test "$mode" = --w--w--w- || fail=1
+
+# Test comma-separated mode strings (like chmod)
+touch file3 || framework_failure_
+ginstall file3 file4 --mode='ug+rw,o+r' || fail=1
+# Check that file4 has permissions -rw-rw-r--
+mode=$(ls -l file4|cut -b-10)
+test "$mode" = -rw-rw-r-- || fail=1
+
+# Test comma-separated mode with directory creation
+ginstall -d testdir --mode='u+rwx,g+rx,o+r' || fail=1
+# Check that testdir has permissions drwxr-xr--
+mode=$(ls -ld testdir|cut -b-10)
+test "$mode" = drwxr-xr-- || fail=1
 
 Exit $fail

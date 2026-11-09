@@ -1,7 +1,7 @@
 #!/bin/sh
 # Compare actual numbers from du, assuming block size matches mine.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,6 +27,21 @@ mkdir -p a/b d d/sub || framework_failure_
 printf '%*s' 257 make-sure-the-file-is-non-empty > a/b/F || framework_failure_
 printf %4096s x > d/1
 cp d/1 d/sub/2
+
+# QUOTING_STYLE does not affect redirected output.
+touch 'q name' || framework_failure_
+printf '0\tq name\n' > exp || framework_failure_
+for style in literal shell-always invalid; do
+  QUOTING_STYLE="$style" du -b 'q name' > out 2> err || fail=1
+  compare exp out || fail=1
+  compare /dev/null err || fail=1
+done
+
+# --null disables quoting, and does not inspect QUOTING_STYLE.
+QUOTING_STYLE=invalid du -0b 'q name' > out 2> err || fail=1
+printf '0\tq name\0' > exp || framework_failure_
+compare exp out || fail=1
+compare /dev/null err || fail=1
 
 
 B=$(stat --format=%B a/b/F)

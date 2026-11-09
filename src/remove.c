@@ -1,5 +1,5 @@
 /* remove.c -- core functions for removing files and directories
-   Copyright (C) 1988-2025 Free Software Foundation, Inc.
+   Copyright (C) 1988-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -375,8 +375,8 @@ fts_skip_tree (FTS *fts, FTSENT *ent)
 static void
 mark_ancestor_dirs (FTSENT *ent)
 {
-  FTSENT *p;
-  for (p = ent->fts_parent; FTS_ROOTLEVEL <= p->fts_level; p = p->fts_parent)
+  for (FTSENT *p = ent->fts_parent; FTS_ROOTLEVEL <= p->fts_level;
+       p = p->fts_parent)
     {
       if (p->fts_number)
         break;
@@ -446,18 +446,15 @@ rm_fts (FTS *fts, FTSENT *ent, struct rm_options const *x)
   switch (ent->fts_info)
     {
     case FTS_D:			/* preorder directory */
-      if (! x->recursive
-          && !(x->remove_empty_directories
-               && get_dir_status (fts, ent, &dir_status) != 0))
+      if (!x->recursive)
         {
-          /* This is the first (pre-order) encounter with a directory
-             that we cannot delete.
-             Not recursive, and it's not an empty directory (if we're removing
-             them) so arrange to skip contents.  */
-          int err = x->remove_empty_directories ? ENOTEMPTY : EISDIR;
-          error (0, err, _("cannot remove %s"), quoteaf (ent->fts_path));
-          mark_ancestor_dirs (ent);
-          fts_skip_tree (fts, ent);
+          /* Not recursive, so skip contents, and fail now unless
+             removing empty directories.  */
+          fts_set (fts, ent, FTS_SKIP);
+          if (x->remove_empty_directories)
+            return RM_OK;
+          error (0, EISDIR, _("cannot remove %s"), quoteaf (ent->fts_path));
+          ignore_value (fts_read (fts));
           return RM_ERROR;
         }
 
@@ -493,7 +490,7 @@ rm_fts (FTS *fts, FTSENT *ent, struct rm_options const *x)
           if (x->preserve_all_root)
             {
               bool failed = false;
-              char *parent = file_name_concat (ent->fts_accpath, "..", nullptr);
+              char *parent = file_name_concat (ent->fts_accpath, "..", NULL);
               struct stat statbuf;
 
               if (!parent || lstat (parent, &statbuf))
@@ -614,14 +611,14 @@ rm (char *const *file, struct rm_options const *x)
       if (x->one_file_system)
         bit_flags |= FTS_XDEV;
 
-      FTS *fts = xfts_open (file, bit_flags, nullptr);
+      FTS *fts = xfts_open (file, bit_flags, NULL);
 
       while (true)
         {
           FTSENT *ent;
 
           ent = fts_read (fts);
-          if (ent == nullptr)
+          if (ent == NULL)
             {
               if (errno != 0)
                 {

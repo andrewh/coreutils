@@ -1,5 +1,5 @@
 /* dircolors - output commands to set the LS_COLOR environment variable
-   Copyright (C) 1996-2025 Free Software Foundation, Inc.
+   Copyright (C) 1996-2026 Free Software Foundation, Inc.
    Copyright (C) 1994, 1995, 1997, 1998, 1999, 2000 H. Peter Anvin
 
    This program is free software: you can redistribute it and/or modify
@@ -44,6 +44,9 @@ enum Shell_syntax
   SHELL_SYNTAX_UNKNOWN
 };
 
+/* The shell syntax being used.  */
+static enum Shell_syntax syntax = SHELL_SYNTAX_UNKNOWN;
+
 #define APPEND_CHAR(C) obstack_1grow (&lsc_obstack, C)
 
 /* Accumulate in this obstack the value for the LS_COLORS environment
@@ -57,7 +60,7 @@ static char const *const slack_codes[] =
   "CHR", "CHAR", "DOOR", "EXEC", "LEFT", "LEFTCODE", "RIGHT", "RIGHTCODE",
   "END", "ENDCODE", "SUID", "SETUID", "SGID", "SETGID", "STICKY",
   "OTHER_WRITABLE", "OWR", "STICKY_OTHER_WRITABLE", "OWT", "CAPABILITY",
-  "MULTIHARDLINK", "CLRTOEOL", nullptr
+  "MULTIHARDLINK", "CLRTOEOL", NULL
 };
 
 static char const *const ls_codes[] =
@@ -65,9 +68,9 @@ static char const *const ls_codes[] =
   "no", "no", "fi", "rs", "di", "ln", "ln", "ln", "or", "mi", "pi", "pi",
   "so", "bd", "bd", "cd", "cd", "do", "ex", "lc", "lc", "rc", "rc", "ec", "ec",
   "su", "su", "sg", "sg", "st", "ow", "ow", "tw", "tw", "ca", "mh", "cl",
-  nullptr
+  NULL
 };
-static_assert (ARRAY_CARDINALITY (slack_codes) == ARRAY_CARDINALITY (ls_codes));
+static_assert (countof (slack_codes) == countof (ls_codes));
 
 /* Whether to output escaped ls color codes for display.  */
 static bool print_ls_colors;
@@ -81,15 +84,15 @@ enum
 
 static struct option const long_options[] =
   {
-    {"bourne-shell", no_argument, nullptr, 'b'},
-    {"sh", no_argument, nullptr, 'b'},
-    {"csh", no_argument, nullptr, 'c'},
-    {"c-shell", no_argument, nullptr, 'c'},
-    {"print-database", no_argument, nullptr, 'p'},
-    {"print-ls-colors", no_argument, nullptr, PRINT_LS_COLORS_OPTION},
+    {"bourne-shell", no_argument, NULL, 'b'},
+    {"sh", no_argument, NULL, 'b'},
+    {"csh", no_argument, NULL, 'c'},
+    {"c-shell", no_argument, NULL, 'c'},
+    {"print-database", no_argument, NULL, 'p'},
+    {"print-ls-colors", no_argument, NULL, PRINT_LS_COLORS_OPTION},
     {GETOPT_HELP_OPTION_DECL},
     {GETOPT_VERSION_OPTION_DECL},
-    {nullptr, 0, nullptr, 0}
+    {NULL, 0, NULL, 0}
   };
 
 void
@@ -102,15 +105,33 @@ usage (int status)
       printf (_("Usage: %s [OPTION]... [FILE]\n"), program_name);
       fputs (_("\
 Output commands to set the LS_COLORS environment variable.\n\
+"), stdout);
+      fputs (_("\
+\n\
+When FILE is -, read standard input.\n\
+"), stdout);
+      fputs (_("\
 \n\
 Determine format of output:\n\
-  -b, --sh, --bourne-shell    output Bourne shell code to set LS_COLORS\n\
-  -c, --csh, --c-shell        output C shell code to set LS_COLORS\n\
-  -p, --print-database        output defaults\n\
-      --print-ls-colors       output fully escaped colors for display\n\
 "), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -b, --sh, --bourne-shell\n\
+         output Bourne shell code to set LS_COLORS\n\
+"));
+      oputs (_("\
+  -c, --csh, --c-shell\n\
+         output C shell code to set LS_COLORS\n\
+"));
+      oputs (_("\
+  -p, --print-database\n\
+         output defaults\n\
+"));
+      oputs (_("\
+      --print-ls-colors\n\
+         output fully escaped colors for display\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 If FILE is specified, read it to determine which colors to use for which\n\
@@ -132,12 +153,12 @@ guess_shell_syntax (void)
   char *shell;
 
   shell = getenv ("SHELL");
-  if (shell == nullptr || *shell == '\0')
+  if (shell == NULL || *shell == '\0')
     return SHELL_SYNTAX_UNKNOWN;
 
   shell = last_component (shell);
 
-  if (STREQ (shell, "csh") || STREQ (shell, "tcsh"))
+  if (streq (shell, "csh") || streq (shell, "tcsh"))
     return SHELL_SYNTAX_C;
 
   return SHELL_SYNTAX_BOURNE;
@@ -150,8 +171,8 @@ parse_line (char const *line, char **keyword, char **arg)
   char const *keyword_start;
   char const *arg_start;
 
-  *keyword = nullptr;
-  *arg = nullptr;
+  *keyword = NULL;
+  *arg = NULL;
 
   for (p = line; c_isspace (*p); ++p)
     continue;
@@ -217,6 +238,13 @@ append_quoted (char const *str)
             need_backslash = !need_backslash;
             break;
 
+          case '!':
+            /* Prevent 'csh' from doing history substitution.  */
+            if (syntax == SHELL_SYNTAX_C)
+              APPEND_CHAR ('\\');
+            need_backslash = true;
+            break;
+
           case ':':
           case '=':
             if (need_backslash)
@@ -267,7 +295,7 @@ dc_parse_stream (FILE *fp, char const *filename)
 {
   idx_t line_number = 0;
   char const *next_G_line = G_line;
-  char *input_line = nullptr;
+  char *input_line = NULL;
   size_t input_line_size = 0;
   char const *line;
   char const *term;
@@ -279,12 +307,12 @@ dc_parse_stream (FILE *fp, char const *filename)
 
   /* Get terminal type */
   term = getenv ("TERM");
-  if (term == nullptr || *term == '\0')
+  if (term == NULL || *term == '\0')
     term = "none";
 
   /* Also match $COLORTERM.  */
   colorterm = getenv ("COLORTERM");
-  if (colorterm == nullptr)
+  if (colorterm == NULL)
     colorterm = "";  /* Doesn't match default "?*"  */
 
   while (true)
@@ -318,10 +346,10 @@ dc_parse_stream (FILE *fp, char const *filename)
 
       parse_line (line, &keywd, &arg);
 
-      if (keywd == nullptr)
+      if (keywd == NULL)
         continue;
 
-      if (arg == nullptr)
+      if (arg == NULL)
         {
           error (0, 0, _("%s:%td: invalid line;  missing second token"),
                  quotef (filename), line_number);
@@ -362,11 +390,11 @@ dc_parse_stream (FILE *fp, char const *filename)
                 {
                   int i;
 
-                  for (i = 0; slack_codes[i] != nullptr; ++i)
+                  for (i = 0; slack_codes[i] != NULL; ++i)
                     if (c_strcasecmp (keywd, slack_codes[i]) == 0)
                       break;
 
-                  if (slack_codes[i] != nullptr)
+                  if (slack_codes[i] != NULL)
                     append_entry (0, ls_codes[i], arg);
                   else
                     unrecognized = true;
@@ -380,7 +408,7 @@ dc_parse_stream (FILE *fp, char const *filename)
         {
           error (0, 0, _("%s:%td: unrecognized keyword %s"),
                  (filename ? quotef (filename) : _("<internal>")),
-                 line_number, keywd);
+                 line_number, quote (keywd));
           ok = false;
         }
 
@@ -396,7 +424,7 @@ dc_parse_file (char const *filename)
 {
   bool ok;
 
-  if (! STREQ (filename, "-") && freopen (filename, "r", stdin) == nullptr)
+  if (! streq (filename, "-") && freopen (filename, "r", stdin) == NULL)
     {
       error (0, errno, "%s", quotef (filename));
       return false;
@@ -418,7 +446,6 @@ main (int argc, char **argv)
 {
   bool ok = true;
   int optc;
-  enum Shell_syntax syntax = SHELL_SYNTAX_UNKNOWN;
   bool print_database = false;
 
   initialize_main (&argc, &argv);
@@ -429,7 +456,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "bcp", long_options, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "bcp", long_options, NULL)) != -1)
     switch (optc)
       {
       case 'b':	/* Bourne shell syntax.  */
@@ -511,7 +538,7 @@ main (int argc, char **argv)
 
       obstack_init (&lsc_obstack);
       if (argc == 0)
-        ok = dc_parse_stream (nullptr, nullptr);
+        ok = dc_parse_stream (NULL, NULL);
       else
         ok = dc_parse_file (argv[0]);
 

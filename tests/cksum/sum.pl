@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "sum".
 
-# Copyright (C) 2000-2025 Free Software Foundation, Inc.
+# Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,6 +41,10 @@ my @Tests =
      ['a-s-1k', '-s', {IN=> {f=> $in_1k}}, {OUT=>"33793 2 f\n"}],
      ['b-r-2k', '-r', {IN=> {f=> $in_2k}}, {OUT=>"65223     2 f\n"}],
      ['b-s-2k', '-s', {IN=> {f=> $in_2k}}, {OUT=>"4099 4 f\n"}],
+
+     # The last of -r and -s wins.
+     ['r-last-1k', '-s -r', {IN=> {f=> $in_1k}}, {OUT=>"65409     1 f\n"}],
+     ['s-last-1k', '-r -s', {IN=> {f=> $in_1k}}, {OUT=>"33793 2 f\n"}],
 
      ['1s', '-s', {IN=> {f=> ''}},	{OUT=>"0 0 f\n"}],
      ['2s', '-s', {IN=> {f=> 'a'}},	{OUT=>"97 1 f\n"}],

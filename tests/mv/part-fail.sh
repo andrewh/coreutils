@@ -4,7 +4,7 @@
 # This is a bit fragile since it relies on the string used
 # for EPERM: 'permission denied'.
 
-# Copyright (C) 2002-2025 Free Software Foundation, Inc.
+# Copyright (C) 2002-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,6 +22,8 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ mv
 skip_if_root_
+getlimits_
+
 cleanup_() { t=$other_partition_tmpdir; chmod -R 700 "$t"; rm -rf "$t"; }
 . "$abs_srcdir/tests/other-fs-tmpdir"
 
@@ -32,13 +34,13 @@ chmod u-w "$other_partition_tmpdir" || framework_failure_
 mv -f k "$other_partition_tmpdir" 2> out && fail=1
 printf \
 "mv: inter-device move failed: '%s' to '%s';"\
-' unable to remove target: Permission denied\n' \
-  k "$other_partition_tmpdir/k" >exp
+' unable to remove target: %s\n' \
+  k "$other_partition_tmpdir/k" "$EACCES" >exp
 
 # On some (less-compliant) systems, we get EPERM in this case.
 # Accept either diagnostic.
 cat <<EOF > exp2
-mv: cannot move 'k' to '$other_partition_tmpdir/k': Permission denied
+mv: cannot move 'k' to '$other_partition_tmpdir/k': $EACCES
 EOF
 
 if cmp out exp >/dev/null 2>&1; then

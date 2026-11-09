@@ -1,5 +1,5 @@
 /* iopoll.c -- broken pipe detection / non blocking output handling
-   Copyright (C) 2022-2025 Free Software Foundation, Inc.
+   Copyright (C) 2022-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -116,9 +116,9 @@ iopoll_internal (int fdin, int fdout, bool block, bool broken_output)
 
       struct timeval delay = {0};
       ret = select (nfds,
-                    broken_output ? &fds : nullptr,
-                    broken_output ? nullptr : &fds,
-                    nullptr, block ? nullptr : &delay);
+                    broken_output ? &fds : NULL,
+                    broken_output ? NULL : &fds,
+                    NULL, block ? NULL : &delay);
 
       if (ret < 0)
         continue;
@@ -177,64 +177,67 @@ iopoll_output_ok (int fdout)
    Return true, if EAGAIN has been successfully handled. */
 
 static bool
-fwait_for_nonblocking_write (FILE *f)
+wait_for_nonblocking_write (int fd)
 {
   if (! IS_EAGAIN (errno))
     /* non-recoverable write error */
     return false;
 
-  int fd = fileno (f);
-  if (fd == -1)
-    goto fail;
-
   /* wait for the file descriptor to become writable */
   if (iopoll_internal (-1, fd, true, false) != 0)
-    goto fail;
+    {
+      errno = EAGAIN;
+      return false;
+    }
 
   /* successfully waited for the descriptor to become writable */
-  clearerr (f);
   return true;
-
-fail:
-  errno = EAGAIN;
-  return false;
 }
 
-
-/* wrapper for fclose() that also waits for F if non blocking.  */
-
-extern bool
-fclose_wait (FILE *f)
-{
-  for (;;)
-    {
-      if (fflush (f) == 0)
-        break;
-
-      if (! fwait_for_nonblocking_write (f))
-        break;
-    }
-
-  return fclose (f) == 0;
-}
-
-
-/* wrapper for fwrite() that also waits for F if non blocking.  */
+/* wrapper for write() that also waits for FD if non blocking.  */
 
 extern bool
-fwrite_wait (char const *buf, ssize_t size, FILE *f)
+write_wait (int fd, void const *buffer, size_t size)
 {
-  for (;;)
+  unsigned char const *buf = buffer;
+
+  do
     {
-      const size_t written = fwrite (buf, 1, size, f);
-      size -= written;
-      affirm (size >= 0);
-      if (size <= 0)  /* everything written */
-        return true;
+      const ssize_t written = write (fd, buf, size);
+      /* POSIX says that calling write with SIZE of zero may detect and
+         return errors.  If no error occurs, or write makes no attempt
+         to detect errors, then write returns zero with no other
+         results.  write_fail will return successfully in this case.  */
+      if (written == 0)
+        {
+          if (size == 0)
+            return true;
+          else
+            {
+              /* If SIZE is greater than zero and write returns zero,
+                 treat it as an error.  Some buggy drivers behave this
+                 way.  See src/dd.c and Gnulib's lib/full-write.c for
+                 more details.  */
+              errno = ENOSPC;
+              return false;
+            }
+        }
 
-      if (! fwait_for_nonblocking_write (f))
-        return false;
-
-      buf += written;
+      if (written < 0)
+        {
+          /* Return an error if write detected one with a SIZE of zero.
+             Otherwise, if SIZE is greater than zero, fail if it does
+             not become writable.  */
+          if (size == 0 || ! wait_for_nonblocking_write (fd))
+            return false;
+        }
+      else
+        {
+          buf += written;
+          size -= written;
+        }
     }
+  while (0 < size);
+
+  return true;
 }

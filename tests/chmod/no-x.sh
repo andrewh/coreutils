@@ -2,7 +2,7 @@
 # Make sure chmod gives the right diagnostic for a readable,
 # but inaccessible directory.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ chmod
 skip_if_root_
+getlimits_
 
 mkdir -p d/no-x/y a/b || framework_failure_
 chmod u=rw d/no-x || framework_failure_
@@ -41,7 +42,7 @@ sed "s/^$prog: cannot read directory /$prog: /" out > t && mv t out
 sed 's,d/no-x/y,d/no-x,' out > t && mv t out
 
 cat <<EOF > exp
-$prog: 'd/no-x': Permission denied
+$prog: 'd/no-x': $EACCES
 EOF
 
 compare exp out || fail=1

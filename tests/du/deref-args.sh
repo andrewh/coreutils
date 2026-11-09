@@ -2,7 +2,7 @@
 # Ensure that --dereference-args (-D) gives reasonable names.
 # This test would fail for coreutils-5.0.91.
 
-# Copyright (C) 2003-2025 Free Software Foundation, Inc.
+# Copyright (C) 2003-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -44,5 +44,10 @@ slink/
 EOF
 
 compare exp out || fail=1
+
+# A later -P overrides --dereference-args, and vice versa.
+ln -s missing dangling || framework_failure_
+du --dereference-args -P dangling > out || fail=1
+returns_ 1 du -P --dereference-args dangling > out 2> err || fail=1
 
 Exit $fail

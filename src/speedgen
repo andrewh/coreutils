@@ -72,28 +72,65 @@ cat >> "$out" <<'EOF'
 }
 
 ATTRIBUTE_CONST
-static speed_t
+static struct speed_desc
 value_to_baud (unsigned long int value)
 {
 # ifdef TERMIOS_SPEED_T_SANE
   speed_t speed = value;
+  /* Unrepresentable (overflow?) */
   if (speed != value)
-    speed = (speed_t) -1;	/* Unrepresentable (overflow?) */
-  return speed;
+    return (struct speed_desc) { .baud = (speed_t) -1, .valid = false };
+  return (struct speed_desc) { .baud = speed, .valid = true };
 # else
   switch (value)
     {
 EOF
 
 while read n; do
-  printf '#  ifdef B%s\n      case %s: return B%s;\n#  endif\n' "$n" "$n" "$n"
+  printf '#  ifdef B%s\n'\
+'    case %s:\n'\
+'      return (struct speed_desc) { .baud = B%s, .valid = false };\n'\
+'#  endif\n' "$n" "$n" "$n"
 done < "$tmp" >> "$out"
 
 cat >> "$out" <<'EOF'
-      default: return (speed_t) -1;
+    default:
+      return (struct speed_desc) { .baud = (speed_t) -1, .valid = false };
     }
 # endif
 }
+
+#if defined CBAUD && defined TERMIOS_SPEED_T_SANE
+/* Decode baud bits without assuming their platform-specific encoding.  */
+static struct speed_desc
+cbaud_to_speed (tcflag_t cbaud)
+{
+  static speed_t const speeds[] =
+    {
+EOF
+
+while read n; do
+  printf '# ifdef B%s\n      B%s,\n# endif\n' "$n" "$n"
+done < "$tmp" >> "$out"
+
+cat >> "$out" <<'EOF'
+    };
+
+# ifdef BOTHER
+  if (cbaud == BOTHER)
+    return (struct speed_desc) { .valid = false };
+# endif
+
+  for (idx_t i = 0; i < countof (speeds); i++)
+    {
+      struct termios mode = { 0 };
+      if (cfsetospeed (&mode, speeds[i]) == 0
+          && (mode.c_cflag & CBAUD) == cbaud)
+        return (struct speed_desc) { .baud = speeds[i], .valid = true };
+    }
+  return (struct speed_desc) { .valid = false };
+}
+#endif
 
 #endif
 EOF

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise shred --remove
 
-# Copyright (C) 1999-2025 Free Software Foundation, Inc.
+# Copyright (C) 1999-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -63,8 +63,23 @@ shred: test: removed
 EOF
 compare exp out || fail=1
 
+# Test the behavior when the file is in a directory.
+mkdir dir || framework_failure_
+echo > dir/$file || framework_failure_
+shred -u dir/$file || fail=1
+test -e dir/$file && fail=1
+
+# Ensure with stdout, file is deallocated but not removed
+echo > $file || framework_failure_
+shred -u - > $file || fail=1
+test -e $file || fail=1
+returns_ 1 test -s $file || fail=1
+
 # Ensure renames are only retried for EEXIST
-mkdir rodir && cd rodir && touch $file && chmod a-w . || framework_failure_
+mkdir rodir && cd rodir && echo > $file && chmod a-w . || framework_failure_
 returns_ 1 timeout 10 shred -u $file || fail=1
+# Also ensure file is deallocated separately to unlink
+returns_ 1 test -s $file || fail=1
+
 
 Exit $fail

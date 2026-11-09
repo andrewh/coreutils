@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "cut".
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use strict;
+
+my $limits = getlimits ();
+my $IO_BUFSIZE = $limits->{IO_BUFSIZE};
 
 (my $ME = $0) =~ s|.*/||;
 
@@ -34,8 +37,23 @@ my $from_pos1 =   "$prog: byte/character positions are numbered from 1\n$try";
 my $inval_fld = "$prog: invalid field range\n$try";
 my $inval_pos = "$prog: invalid byte or character range\n$try";
 my $no_endpoint = "$prog: invalid range with no endpoint: -\n$try";
-my $nofield = "$prog: an input delimiter may be specified only when " .
+my $one_list = "$prog: only one list may be specified\n$try";
+my $nofield = "$prog: an input delimiter makes sense\n\tonly when " .
               "operating on fields\n$try";
+my $mutual_dw = "$prog: -d and -w are mutually exclusive\n$try";
+my $single_char = "$prog: the delimiter must be a single character\n$try";
+my $single_byte_locale = 'C';
+
+{
+  my $codeset = qx(LC_ALL=C locale charmap 2>/dev/null);
+  chomp $codeset;
+  if ($codeset eq 'UTF-8')
+    {
+      my $fr_locale = $ENV{LOCALE_FR};
+      $single_byte_locale
+        = defined $fr_locale && $fr_locale ne 'none' ? $fr_locale : undef;
+    }
+}
 
 my @Tests =
  (
@@ -64,6 +82,7 @@ my @Tests =
   ['7', '-c4', {IN=>"123"}, {OUT=>"\n"}],
   ['8', '-c4', {IN=>"123\n1"}, {OUT=>"\n\n"}],
   ['9', '-c4', {IN=>""}, {OUT=>""}],
+  ['byte-newline-1', '-b1', {IN=>"a\n"}, {OUT=>"a\n"}],
   ['a', qw(-s -d:), '-f3-', {IN=>"a:b:c\n"}, {OUT=>"c\n"}],
   ['b', qw(-s -d:), '-f2,3', {IN=>"a:b:c\n"}, {OUT=>"b:c\n"}],
   ['c', qw(-s -d:), '-f1,3', {IN=>"a:b:c\n"}, {OUT=>"a:c\n"}],
@@ -113,6 +132,7 @@ my @Tests =
   # Missing byte list
   ['missing-bl', qw(-b --), {IN=>":\n"}, {OUT=>""}, {EXIT=>1},
    {ERR=>$inval_pos}],
+  ['multi-list-1', qw(-f 1 -F 2), {EXIT=>1}, {ERR=>$one_list}],
 
   # This test fails with cut from textutils-1.22.
   ['empty-f1', '-f1', {IN=>""}, {OUT=>""}],
@@ -122,8 +142,7 @@ my @Tests =
   ['o-delim', qw(-d: --out=_), '-f2,3', {IN=>"a:b:c\n"}, {OUT=>"b_c\n"}],
   ['nul-idelim', qw(-d '' --out=_), '-f2,3', {IN=>"a\0b\0c\n"}, {OUT=>"b_c\n"}],
   ['nul-odelim', qw(-d: --out=), '-f2,3', {IN=>"a:b:c\n"}, {OUT=>"b\0c\n"}],
-  ['multichar-od', qw(-d: --out=_._), '-f2,3', {IN=>"a:b:c\n"},
-   {OUT=>"b_._c\n"}],
+  ['multichar-od', qw(-d: -O _._), '-f2,3', {IN=>"a:b:c\n"}, {OUT=>"b_._c\n"}],
 
   # Ensure delim is not allowed without a field
   # Prior to 8.21, a NUL delim was allowed without a field
@@ -134,6 +153,22 @@ my @Tests =
   ['8bit-delim', '-d', "\255", '--out=_', '-f2,3', {IN=>"a\255b\255c\n"},
    {OUT=>"b_c\n"}],
 
+  ['w-delim-1', '-w', '-f2,3', {IN=>"a\tb  c\n"}, {OUT=>"b\tc\n"}],
+  ['w-delim-2', '-w', '-f1,2', {IN=>"  a b\n"}, {OUT=>"\ta\n"}],
+  ['w-delim-3', '-s', '-w', '-f2', {IN=>"abc\n"}, {OUT=>""}],
+  ['w-delim-4', '-s', '-w', '-f1', {IN=>"a b c\n"}, {OUT=>"a\n"}],
+  ['w-delim-5', '-w', '-d:', '-f1', {EXIT=>1}, {ERR=>$mutual_dw}],
+  ['w-delim-6', '-w', '-f1,2', {IN=>"a  \n"}, {OUT=>"a\t\n"}],
+  ['w-delim-7', '--whitespace-delimited', '-f1,2',
+   {IN=>"  a b\n"}, {OUT=>"\ta\n"}],
+  ['F-delim-1', '-F', '2,3', {IN=>"a\tb  c\n"}, {OUT=>"b c\n"}],
+  ['F-delim-2', qw(-F 2,3 -O _), {IN=>"a\tb  c\n"}, {OUT=>"b_c\n"}],
+  ['F-delim-3', qw(-F 2,3 -d ,), {IN=>"1,2,3\n"}, {OUT=>"2 3\n"}],
+  ['w-trim-1', '--whitespace-delimited=trimmed', '-f1,2',
+   {IN=>"  a b  \n"}, {OUT=>"a\tb\n"}],
+  ['w-trim-2', '-s', '--whitespace-delimited=trimmed', '-f1',
+   {IN=>"  a  \n"}, {OUT=>""}],
+
   # newline processing for fields
   ['newline-1', '-f1-', {IN=>"a\nb"}, {OUT=>"a\nb\n"}],
   ['newline-2', '-f1-', {IN=>""}, {OUT=>""}],
@@ -141,6 +176,7 @@ my @Tests =
   ['newline-4', '-d:', '-f1', {IN=>"a:1\nb:2"}, {OUT=>"a\nb\n"}],
   ['newline-5', '-d:', '-f2', {IN=>"a:1\nb:2\n"}, {OUT=>"1\n2\n"}],
   ['newline-6', '-d:', '-f2', {IN=>"a:1\nb:2"}, {OUT=>"1\n2\n"}],
+  ['newline-6a', '-d:', '-f2', {IN=>"a\nb"}, {OUT=>"a\nb\n"}],
   ['newline-7', '-s', '-d:', '-f1', {IN=>"a:1\nb:2"}, {OUT=>"a\nb\n"}],
   ['newline-8', '-s', '-d:', '-f1', {IN=>"a:1\nb:2\n"}, {OUT=>"a\nb\n"}],
   ['newline-9', '-s', '-d:', '-f1', {IN=>"a1\nb2"}, {OUT=>""}],
@@ -160,6 +196,19 @@ my @Tests =
   ['newline-22', "-d'\n'", '-f1-', {IN=>"\nb"}, {OUT=>"\nb\n"}],
   ['newline-23', "-d'\n'", '-f1-', '--ou=:', {IN=>"a\nb\n"}, {OUT=>"a:b\n"}],
   ['newline-24', "-d'\n'", '-f1,2', '--ou=:', {IN=>"a\nb\n"}, {OUT=>"a:b\n"}],
+  ['newline-26', "-d'\n'", '-f2', {IN=>"a\n"}, {OUT=>"\n"}],
+  ['newline-27', '-s', "-d'\n'", '-f2', {IN=>"a\n"}, {OUT=>""}],
+  ['newline-28', '-s', "-d'\n'", '-f2',
+   {IN=>('a' x ($IO_BUFSIZE - 1)) . "\n"}, {OUT=>""}],
+  ['newline-29', '-s', "-d'\n'", '-f2',
+   {IN=>('a' x ($IO_BUFSIZE - 1)) . "\nb"}, {OUT=>"b\n"}],
+
+  # input without delimiter and -s flag
+  ['newline-25', '-s', "-d'\n'", '-f1', {IN=>"abc"}, {OUT=>""}],
+
+  # Ensure we can skip the remainder of a long line after the selected field.
+  ['line-only-1', '-d:', '-f1',
+   {IN=>"a:" . ('b' x $IO_BUFSIZE) . "\n"}, {OUT=>"a\n"}],
 
   # --zero-terminated
   ['zerot-1', "-z", '-c1', {IN=>"ab\0cd\0"}, {OUT=>"a\0c\0"}],
@@ -168,6 +217,7 @@ my @Tests =
   ['zerot-4', '-z -d:', '-f1', {IN=>"a:1\0b:2"}, {OUT=>"a\0b\0"}],
   ['zerot-5', '-z -d:', '-f1-', {IN=>"a1:\0:"}, {OUT=>"a1:\0:\0"}],
   ['zerot-6', "-z -d ''", '-f1,2', '--ou=:', {IN=>"a\0b\0"}, {OUT=>"a:b\0"}],
+  ['zerot-7', "-z -d '' -s", '-f1', {IN=>"abc"}, {OUT=>""}],
 
   # New functionality:
   ['out-delim1', '-c1-3,5-', '--output-d=:', {IN=>"abcdefg\n"},
@@ -243,7 +293,203 @@ if ($mb_locale ne 'C')
         push @new, ["$test_name-mb", @new_t, {ENV => "LC_ALL=$mb_locale"}];
       }
     push @Tests, @new;
+
+    push @Tests,
+      ['mb-char-1', '-c1', {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-char-2', '-c2', {IN=>"\xc3\xa9x\n"}, {OUT=>"x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-char-3', '-c1,3', '--output-d=:',
+       {IN=>"\xc3\xa9a\xe2\x82\xacb\n"}, {OUT=>"\xc3\xa9:\xe2\x82\xac\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-char-4', '-c1,3', "--output-d='\xe2\x90\x9e'",
+       {IN=>"\xc3\xa9ab\n"}, {OUT=>"\xc3\xa9\xe2\x90\x9eb\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-char-5', '-c1-2', {IN=>"\xc3x\n"}, {OUT=>"\xc3x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      # Skip lines whose remaining bytes cannot reach the next selection.
+      ['mb-char-short-line', '-c4',
+       {IN=>"\xc3\xa9\n\nabcX\nab\xffY\nz"}, {OUT=>"\n\nX\nY\n\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      # Count multibyte prefixes across buffers, including invalid bytes.
+      ['mb-char-prefix-ascii', '-c' . $IO_BUFSIZE,
+       {IN=>("a" x ($IO_BUFSIZE - 2)) . "\xc3\xa9X"},
+       {OUT=>"X\n"}, {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-char-prefix', '-c' . ($IO_BUFSIZE + 4),
+       {IN=>("\xc3\xa9" x $IO_BUFSIZE)
+            . "\xe2\x82\xac\xf0\x9f\x98\x80\xffX\nshort"},
+       {OUT=>"X\n\n"}, {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-char-prefix-nul', '-z', '-c5',
+       {IN=>"\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80\xffX\0short"},
+       {OUT=>"X\0t\0"}, {ENV => "LC_ALL=$mb_locale"}],
+      # Skip unselected suffixes across input buffers and reset at line ends.
+      ['mb-char-suffix', '-c1',
+       {IN=>"\xc3\xa9" . ("\xff" x (2 * $IO_BUFSIZE)) . "\nbignored"},
+       {OUT=>"\xc3\xa9\nb\n"}, {ENV => "LC_ALL=$mb_locale"}],
+      # Note mb-byte-n-1 and mb-byte-n-4 differ from coreutils-i18n patch,
+      # which outputs a character if any byte is selected.
+      # I.e., the i18n patch may output more bytes that the requested range.
+      # Also mb-byte-n-3 differs from coreutils-i18n patch,
+      # but that looks like a bug in that patch rather than a design choice.
+      ['mb-byte-n-1', qw(-b1 -n), {IN=>"\xc3\xa9x\n"}, {OUT=>"\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-2', qw(-b2 -n), {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-3', qw(-b1-2 -n), {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-4', qw(-b1,3 -n), {IN=>"\xc3\xa9x\n"}, {OUT=>"x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-5', qw(-b2-3 -n), {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-6', qw(-b2 -n), {IN=>"\xe2\x82\xacx\n"}, {OUT=>"\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-7', qw(-b3 -n), {IN=>"\xe2\x82\xacx\n"},
+       {OUT=>"\xe2\x82\xac\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-byte-n-8', qw(-b2-3 -n), {IN=>"\xe2\x82\xacx\n"},
+       {OUT=>"\xe2\x82\xac\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-1', '-d', "\xc3\xa9", '-f2',
+       {IN=>"a\xc3\xa9b\xc3\xa9c\n"}, {OUT=>"b\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-2', '-d', "\xc3\xa9", '-f1,3',
+       {IN=>"a\xc3\xa9b\xc3\xa9c\n"}, {OUT=>"a\xc3\xa9c\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-3', '-s', '-d', "\xc3\xa9", '-f2',
+       {IN=>"abc\n"}, {OUT=>""},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-4', '-s', '-d', "\xc3\xa9", '-f1',  # bug in coreutils-i18n
+       {IN=>"a\xc3\xa9b\n"}, {OUT=>"a\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-5', '-d', "\xa9", '-f2',  # Different from coreutils-i18n
+       {IN=>"A\xc3\xa9B\xa9C\n"}, {OUT=>"C\n"},  # (we don't split valid chars)
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-6', '-d', "\xc3\xa9", '-f1,3',
+       {IN=>"a\xc3\xa9b\xc3\xa9c"}, {OUT=>"a\xc3\xa9c\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-7', '-d', "\xc3\xa9", '-f2',
+       {IN=>"a\0b\xc3\xa9c\n"}, {OUT=>"c\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-8', '-d', "\xff", '-f2',  # Note 0xF5-0xFF is efficient
+       {IN=>"a\xffb\n"}, {OUT=>"b\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-9', '-d', "\xc3\xa9", '-f2',
+       {IN=>('a' x ($IO_BUFSIZE - 1)) . "\xc3\xa9b\n"}, {OUT=>"b\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-10', '-s', '-d', "\xc3\xa9", '-f2',
+       {IN=>"a\0b\0"}, {OUT=>""},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-11', '-f1', '-d', "\xF0\x9F\x98\x80",  # MCEL_LEN_MAX
+       {IN=>"a\xF0\x9F\x98\x80b\n"}, {OUT=>"a\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-w-delim-1', '-w', '-f2', {IN=>"a\xe2\x80\x83b\n"}, {OUT=>"b\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-w-delim-2', '-sw', '-f2', {IN=>"a\xc2\xa0b\n"}, {OUT=>""},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-w-nodelim-1', '-w', '-f2', {IN=>"abc"}, {OUT=>"abc\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # --complement with multi-byte
+      ['mb-compl-c1', '--complement', '-c1',
+       {IN=>"\xc3\xa9x\n"}, {OUT=>"x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-compl-c2', '--complement', '-c2',
+       {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-compl-f1', '--complement', '-d', "\xc3\xa9", '-f1',
+       {IN=>"a\xc3\xa9b\xc3\xa9c\n"}, {OUT=>"b\xc3\xa9c\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-compl-bn1', '--complement', qw(-b1 -n),
+       {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # -z with multi-byte
+      ['mb-zerot-c1', '-z', '-c1',
+       {IN=>"\xc3\xa9x\0\xc3\xa9y\0"}, {OUT=>"\xc3\xa9\0\xc3\xa9\0"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-zerot-f1', '-z', '-d', "\xc3\xa9", '-f2',
+       {IN=>"a\xc3\xa9b\0c\xc3\xa9d\0"}, {OUT=>"b\0d\0"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-zerot-f2', '-z', '-d', "\xc3\xa9", '-f1',
+       {IN=>"a\xc3\xa9b\0c\xc3\xa9d"}, {OUT=>"a\0c\0"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # empty fields with multi-byte delimiter
+      ['mb-empty-f1', '-d', "\xc3\xa9", '-f1',
+       {IN=>"\xc3\xa9\xc3\xa9c\n"}, {OUT=>"\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-empty-f2', '-d', "\xc3\xa9", '-f2',
+       {IN=>"\xc3\xa9\xc3\xa9c\n"}, {OUT=>"\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-empty-f3', '-d', "\xc3\xa9", '-f3',
+       {IN=>"\xc3\xa9\xc3\xa9c\n"}, {OUT=>"c\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-empty-f1-3', '-d', "\xc3\xa9", '-f1-3', '--output-d=:',
+       {IN=>"\xc3\xa9\xc3\xa9c\n"}, {OUT=>"::c\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # multi-byte output delimiter with -f
+      ['mb-odelim-f1', '-d', "\xc3\xa9", '-f1,3',
+       "--output-d=\xe2\x82\xac",
+       {IN=>"a\xc3\xa9b\xc3\xa9c\n"}, {OUT=>"a\xe2\x82\xacc\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # multi-line, multi-byte delimiter, no trailing newline
+      ['mb-multiline-1', '-d', "\xc3\xa9", '-f2',
+       {IN=>"a\xc3\xa9b\nc\xc3\xa9d"}, {OUT=>"b\nd\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # -w with multi-byte field content
+      ['mb-w-content-1', '-w', '-f1,2', {IN=>"\xc3\xa9\t\xc3\xbc\n"},
+       {OUT=>"\xc3\xa9\t\xc3\xbc\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # Stop decoding fields once the finite selection is exhausted.
+      ['mb-w-exhausted-1', '-w', '-f1',
+       {IN=>"a\xe2\x80\x83ignored\nb\xe2\x80\x83ignored"},
+       {OUT=>"a\nb\n"}, {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-w-exhausted-2', '-w', '-f1', {IN=>"a  \nb  "},
+       {OUT=>"a\nb\n"}, {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-w-exhausted-initial', '-s', '-w', '--complement', '-f1-',
+       {IN=>"a\xe2\x80\x83ignored\nplain"}, {OUT=>"\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-delim-exhausted', '-d', "\xa9", '-f1',
+       {IN=>"A\xc3\xa9B\xa9ignored\nC\xa9ignored"},
+       {OUT=>"A\xc3\xa9B\nC\n"}, {ENV => "LC_ALL=$mb_locale"}],
+
+      # -b -n with output delimiter
+      ['mb-bn-odelim', qw(-b1,3 -n), '--output-d=:',
+       {IN=>"\xc3\xa9x\n"}, {OUT=>"x\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+      ['mb-bn-odelim-2', qw(-b1-2,4 -n), '--output-d=:',
+       {IN=>"\xc3\xa9\xc3\xbcx\n"}, {OUT=>"\xc3\xa9:\xc3\xbc\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # -b -n with --complement
+      ['mb-compl-bn2', '--complement', qw(-b3 -n),
+       {IN=>"\xc3\xa9x\n"}, {OUT=>"\xc3\xa9\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # -F in multi-byte locale
+      ['mb-F-1', '-F', '2', {IN=>"\xc3\xa9\t\xc3\xbc\n"},
+       {OUT=>"\xc3\xbc\n"},
+       {ENV => "LC_ALL=$mb_locale"}],
+
+      # In coreutils-9.11 this corrupted the delimiter "string"
+      ['mb-mismatch', '-f1', '-d', "\xF0\x9F\x98\x80", '-d', "\xEF\xBC\x8C",
+       {IN=>"a\xEF\xBC\x8Cb\n"}, {OUT=>"a\n"},
+       {ENV => "LC_ALL=$mb_locale"}];
   }
+
+defined $single_byte_locale
+  and push @Tests,
+    ['mb-delim-C', '-d', "\xc3\xa9", '-f1',
+     {EXIT=>1}, {ERR=>$single_char},
+     {ENV => "LC_ALL=$single_byte_locale"}],
+    ['c-locale-byte', '-c2', {IN=>"a\xC3\xA9b\n"}, {OUT=>"\xC3\n"},
+     {ENV => "LC_ALL=$single_byte_locale"}],
+    ['c-locale-nosplit', qw(-b2 -n), {IN=>"a\xC3\xA9b\n"}, {OUT=>"\xC3\n"},
+     {ENV => "LC_ALL=$single_byte_locale"}];
 
 
 @Tests = triple_test \@Tests;

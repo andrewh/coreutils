@@ -1,5 +1,5 @@
 /* chmod -- change permission modes of files
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "assure.h"
 #include "dev-ino.h"
 #include "filemode.h"
+#include "fts-missing.h"
 #include "ignore-value.h"
 #include "modechange.h"
 #include "quote.h"
@@ -90,7 +91,7 @@ static bool diagnose_surprises;
 static enum Verbosity verbosity = V_off;
 
 /* Pointer to the device and inode numbers of '/', when --recursive.
-   Otherwise nullptr.  */
+   Otherwise NULL.  */
 static struct dev_ino *root_dev_ino;
 
 /* For long options that have no equivalent short option, use a
@@ -105,19 +106,19 @@ enum
 
 static struct option const long_options[] =
 {
-  {"changes", no_argument, nullptr, 'c'},
-  {"dereference", no_argument, nullptr, DEREFERENCE_OPTION},
-  {"recursive", no_argument, nullptr, 'R'},
-  {"no-dereference", no_argument, nullptr, 'h'},
-  {"no-preserve-root", no_argument, nullptr, NO_PRESERVE_ROOT},
-  {"preserve-root", no_argument, nullptr, PRESERVE_ROOT},
-  {"quiet", no_argument, nullptr, 'f'},
-  {"reference", required_argument, nullptr, REFERENCE_FILE_OPTION},
-  {"silent", no_argument, nullptr, 'f'},
-  {"verbose", no_argument, nullptr, 'v'},
+  {"changes", no_argument, NULL, 'c'},
+  {"dereference", no_argument, NULL, DEREFERENCE_OPTION},
+  {"recursive", no_argument, NULL, 'R'},
+  {"no-dereference", no_argument, NULL, 'h'},
+  {"no-preserve-root", no_argument, NULL, NO_PRESERVE_ROOT},
+  {"preserve-root", no_argument, NULL, PRESERVE_ROOT},
+  {"quiet", no_argument, NULL, 'f'},
+  {"reference", required_argument, NULL, REFERENCE_FILE_OPTION},
+  {"silent", no_argument, NULL, 'f'},
+  {"verbose", no_argument, NULL, 'v'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Return true if the chmodable permission bits of FILE changed.
@@ -125,8 +126,10 @@ static struct option const long_options[] =
 
 static bool
 mode_changed (int dir_fd, char const *file, char const *file_full_name,
-              mode_t old_mode, mode_t new_mode)
+              mode_t old_mode, mode_t new_mode, bool ignore_missing,
+              bool *file_missing)
 {
+  *file_missing = false;
   if (new_mode & (S_ISUID | S_ISGID | S_ISVTX))
     {
       /* The new mode contains unusual bits that the call to chmod may
@@ -136,7 +139,9 @@ mode_changed (int dir_fd, char const *file, char const *file_full_name,
 
       if (fstatat (dir_fd, file, &new_stats, 0) != 0)
         {
-          if (! force_silent)
+          *file_missing = (ignore_missing
+                           && ignorable_traversal_errno (errno));
+          if (! *file_missing && ! force_silent)
             error (0, errno, _("getting new attributes of %s"),
                    quoteaf (file_full_name));
           return false;
@@ -215,6 +220,10 @@ process_file (FTS *fts, FTSENT *ent)
   struct change_status ch = {0};
   ch.status = CH_NO_STAT;
   struct stat stat_buf;
+  bool ignore_missing = ignore_missing_fts_entry (ent);
+
+  if (ignore_missing && ignorable_fts_error (ent))
+    return true;
 
   switch (ent->fts_info)
     {
@@ -229,7 +238,7 @@ process_file (FTS *fts, FTSENT *ent)
          accessible when control reaches this point.  So, if this is
          the first time we've seen the FTS_NS for this file, tell
          fts_read to stat it "again".  */
-      if (ent->fts_level == 0 && ent->fts_number == 0)
+      if (ent->fts_level == FTS_ROOTLEVEL && ent->fts_number == 0)
         {
           ent->fts_number = 1;
           fts_set (fts, ent, FTS_AGAIN);
@@ -267,6 +276,9 @@ process_file (FTS *fts, FTSENT *ent)
         {
           if (fstatat (fts->fts_cwd_fd, file, &stat_buf, 0) != 0)
             {
+              if (ignore_missing
+                  && ignorable_traversal_errno (errno))
+                return true;
               if (! force_silent)
                 error (0, errno, _("cannot dereference %s"),
                        quoteaf (file_full_name));
@@ -305,15 +317,18 @@ process_file (FTS *fts, FTSENT *ent)
     {
       ch.old_mode = file_stats->st_mode;
       ch.new_mode = mode_adjust (ch.old_mode, S_ISDIR (ch.old_mode) != 0,
-                                 umask_value, change, nullptr);
+                                 umask_value, change, NULL);
       bool follow_symlink = !!dereference;
       if (dereference == -1) /* -H with/without -R, -P without -R.  */
-        follow_symlink = ent->fts_level == 0;
+        follow_symlink = ent->fts_level == FTS_ROOTLEVEL;
       if (fchmodat (fts->fts_cwd_fd, file, ch.new_mode,
                     follow_symlink ? 0 : AT_SYMLINK_NOFOLLOW) == 0)
         ch.status = CH_SUCCEEDED;
       else
         {
+          if (ignore_missing
+              && ignorable_traversal_errno (errno))
+            return true;
           if (! is_ENOTSUP (errno))
             {
               if (! force_silent)
@@ -328,10 +343,16 @@ process_file (FTS *fts, FTSENT *ent)
 
   if (verbosity != V_off)
     {
+      bool file_missing;
       if (ch.status == CH_SUCCEEDED
           && !mode_changed (fts->fts_cwd_fd, file, file_full_name,
-                            ch.old_mode, ch.new_mode))
-        ch.status = CH_NO_CHANGE_REQUESTED;
+                            ch.old_mode, ch.new_mode, ignore_missing,
+                            &file_missing))
+        {
+          if (file_missing)
+            return true;
+          ch.status = CH_NO_CHANGE_REQUESTED;
+        }
 
       if (ch.status == CH_SUCCEEDED || verbosity == V_high)
         describe_change (file_full_name, &ch);
@@ -341,7 +362,7 @@ process_file (FTS *fts, FTSENT *ent)
     {
       mode_t naively_expected_mode =
         mode_adjust (ch.old_mode, S_ISDIR (ch.old_mode) != 0,
-                     0, change, nullptr);
+                     0, change, NULL);
       if (ch.new_mode & ~naively_expected_mode)
         {
           char new_perms[12];
@@ -372,14 +393,14 @@ process_files (char **files, int bit_flags)
 {
   bool ok = true;
 
-  FTS *fts = xfts_open (files, bit_flags, nullptr);
+  FTS *fts = xfts_open (files, bit_flags, NULL);
 
   while (true)
     {
       FTSENT *ent;
 
       ent = fts_read (fts);
-      if (ent == nullptr)
+      if (ent == NULL)
         {
           if (errno != 0)
             {
@@ -421,30 +442,47 @@ Change the mode of each FILE to MODE.\n\
 With --reference, change the mode of each FILE to that of RFILE.\n\
 \n\
 "), stdout);
-      fputs (_("\
-  -c, --changes          like verbose but report only when a change is made\n\
-  -f, --silent, --quiet  suppress most error messages\n\
-  -v, --verbose          output a diagnostic for every file processed\n\
-"), stdout);
-      fputs (_("\
-      --dereference      affect the referent of each symbolic link,\n\
-                           rather than the symbolic link itself\n\
-  -h, --no-dereference   affect each symbolic link, rather than the referent\n\
-"), stdout);
-      fputs (_("\
-      --no-preserve-root  do not treat '/' specially (the default)\n\
-      --preserve-root    fail to operate recursively on '/'\n\
-"), stdout);
-      fputs (_("\
-      --reference=RFILE  use RFILE's mode instead of specifying MODE values.\n\
-                         RFILE is always dereferenced if a symbolic link.\n\
-"), stdout);
-      fputs (_("\
-  -R, --recursive        change files and directories recursively\n\
-"), stdout);
+      oputs (_("\
+  -c, --changes\n\
+         like verbose but report only when a change is made\n\
+"));
+      oputs (_("\
+  -f, --silent, --quiet\n\
+         suppress most error messages\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         output a diagnostic for every file processed\n\
+"));
+      oputs (_("\
+      --dereference\n\
+         affect the referent of each symbolic link,\n\
+         rather than the symbolic link itself\n\
+"));
+      oputs (_("\
+  -h, --no-dereference\n\
+         affect each symbolic link, rather than the referent\n\
+"));
+      oputs (_("\
+      --no-preserve-root\n\
+         do not treat '/' specially (the default)\n\
+"));
+      oputs (_("\
+      --preserve-root\n\
+         fail to operate recursively on '/'\n\
+"));
+      oputs (_("\
+      --reference=RFILE\n\
+         use RFILE's mode instead of specifying MODE values.\n\
+         RFILE is always dereferenced if a symbolic link.\n\
+"));
+      oputs (_("\
+  -R, --recursive\n\
+         change files and directories recursively\n\
+"));
       emit_symlink_recurse_options ("-H");
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 Each MODE is of the form '[ugoa]*([-+=]([rwxXst]*|[ugo]))+|[-+=][0-7]+'.\n\
@@ -460,12 +498,12 @@ Each MODE is of the form '[ugoa]*([-+=]([rwxXst]*|[ugo]))+|[-+=][0-7]+'.\n\
 int
 main (int argc, char **argv)
 {
-  char *mode = nullptr;
+  char *mode = NULL;
   idx_t mode_len = 0;
   idx_t mode_alloc = 0;
   bool ok;
   bool preserve_root = false;
-  char const *reference_file = nullptr;
+  char const *reference_file = NULL;
   int c;
   int bit_flags = FTS_COMFOLLOW | FTS_PHYSICAL;
 
@@ -477,12 +515,10 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  recurse = force_silent = diagnose_surprises = false;
-
   while ((c = getopt_long (argc, argv,
                            ("HLPRcfhvr::w::x::X::s::t::u::g::o::a::,::+::=::"
                             "0::1::2::3::4::5::6::7::"),
-                           long_options, nullptr))
+                           long_options, NULL))
          != -1)
     {
       switch (c)
@@ -636,13 +672,13 @@ main (int argc, char **argv)
     {
       static struct dev_ino dev_ino_buf;
       root_dev_ino = get_root_dev_ino (&dev_ino_buf);
-      if (root_dev_ino == nullptr)
+      if (root_dev_ino == NULL)
         error (EXIT_FAILURE, errno, _("failed to get attributes of %s"),
                quoteaf ("/"));
     }
   else
     {
-      root_dev_ino = nullptr;
+      root_dev_ino = NULL;
     }
 
   bit_flags |= FTS_DEFER_STAT;

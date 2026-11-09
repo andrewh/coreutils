@@ -1,5 +1,5 @@
 /* wc - print the number of lines, words, and bytes in files
-   Copyright (C) 1985-2025 Free Software Foundation, Inc.
+   Copyright (C) 1985-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,11 +19,9 @@
 
 #include <config.h>
 
-#include <ctype.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <sys/types.h>
-#include <uchar.h>
 
 #include <argmatch.h>
 #include <argv-iter.h>
@@ -33,9 +31,17 @@
 #include <stat-size.h>
 #include <xbinary-io.h>
 
+#ifdef USE_NEON_WC_LINECOUNT
+# include <sys/auxv.h>
+# include <asm/hwcap.h>
+#endif
+
 #include "system.h"
+#include "assure.h"
+#include "cpu-supports.h"
 #include "ioblksize.h"
 #include "wc.h"
+#include "utf8.h"
 
 /* The official name of this program (e.g., no 'g' prefix).  */
 #define PROGRAM_NAME "wc"
@@ -99,17 +105,17 @@ enum
 
 static struct option const longopts[] =
 {
-  {"bytes", no_argument, nullptr, 'c'},
-  {"chars", no_argument, nullptr, 'm'},
-  {"lines", no_argument, nullptr, 'l'},
-  {"words", no_argument, nullptr, 'w'},
-  {"debug", no_argument, nullptr, DEBUG_PROGRAM_OPTION},
-  {"files0-from", required_argument, nullptr, FILES0_FROM_OPTION},
-  {"max-line-length", no_argument, nullptr, 'L'},
-  {"total", required_argument, nullptr, TOTAL_OPTION},
+  {"bytes", no_argument, NULL, 'c'},
+  {"chars", no_argument, NULL, 'm'},
+  {"lines", no_argument, NULL, 'l'},
+  {"words", no_argument, NULL, 'w'},
+  {"debug", no_argument, NULL, DEBUG_PROGRAM_OPTION},
+  {"files0-from", required_argument, NULL, FILES0_FROM_OPTION},
+  {"max-line-length", no_argument, NULL, 'L'},
+  {"total", required_argument, NULL, TOTAL_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 enum total_type
@@ -121,7 +127,7 @@ enum total_type
   };
 static char const *const total_args[] =
 {
-  "auto", "always", "only", "never", nullptr
+  "auto", "always", "only", "never", NULL
 };
 static enum total_type const total_types[] =
 {
@@ -134,14 +140,44 @@ static enum total_type total_mode = total_auto;
 static bool
 avx2_supported (void)
 {
-  bool avx_enabled = 0 < __builtin_cpu_supports ("avx2");
-
+  bool avx2_enabled = cpu_supports ("avx2");
   if (debug)
-    error (0, 0, (avx_enabled
+    error (0, 0, (avx2_enabled
                   ? _("using avx2 hardware support")
                   : _("avx2 support not detected")));
 
-  return avx_enabled;
+  return avx2_enabled;
+}
+#endif
+
+#ifdef USE_AVX512_WC_LINECOUNT
+static bool
+avx512_supported (void)
+{
+  bool avx512_enabled = (cpu_supports ("avx512f")
+                         && cpu_supports ("avx512bw"));
+
+  if (debug)
+    error (0, 0, (avx512_enabled
+                  ? _("using avx512 hardware support")
+                  : _("avx512 support not detected")));
+
+  return avx512_enabled;
+}
+#endif
+
+#ifdef USE_NEON_WC_LINECOUNT
+static bool
+neon_supported (void)
+{
+  bool neon_enabled = (cpu_may_support ("asimd")
+                       && 0 < (getauxval (AT_HWCAP) & HWCAP_ASIMD));
+  if (debug)
+    error (0, 0, (neon_enabled
+                  ? _("using neon hardware support")
+                  : _("neon support not detected")));
+
+  return neon_enabled;
 }
 #endif
 
@@ -169,36 +205,56 @@ space delimited by white space characters or by start or end of input.\n\
 \n\
 The options below may be used to select which counts are printed, always in\n\
 the following order: newline, word, character, byte, maximum line length.\n\
-  -c, --bytes            print the byte counts\n\
-  -m, --chars            print the character counts\n\
-  -l, --lines            print the newline counts\n\
 "), stdout);
-      fputs (_("\
-      --files0-from=F    read input from the files specified by\n\
-                           NUL-terminated names in file F;\n\
-                           If F is - then read names from standard input\n\
-  -L, --max-line-length  print the maximum display width\n\
-  -w, --words            print the word counts\n\
-"), stdout);
-      fputs (_("\
-      --total=WHEN       when to print a line with total counts;\n\
-                           WHEN can be: auto, always, only, never\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -c, --bytes\n\
+         print the byte counts\n\
+"));
+      oputs (_("\
+  -m, --chars\n\
+         print the character counts\n\
+"));
+      oputs (_("\
+  -l, --lines\n\
+         print the newline counts\n\
+"));
+      oputs (_("\
+      --debug\n\
+         indicate what line count acceleration is used\n\
+"));
+      oputs (_("\
+      --files0-from=F\n\
+         read input from the files specified by\n\
+         NUL-terminated names in file F;\n\
+         If F is -, read names from standard input\n\
+"));
+      oputs (_("\
+  -L, --max-line-length\n\
+         print the maximum display width\n\
+"));
+      oputs (_("\
+  -w, --words\n\
+         print the word counts\n\
+"));
+      oputs (_("\
+      --total=WHEN\n\
+         when to print a line with total counts;\n\
+         WHEN can be: auto, always, only, never\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
 }
 
-/* Return non zero if a non breaking space.  */
+/* Return non zero if POSIXLY_CORRECT is not set and WC is a non breaking
+   space.  */
 ATTRIBUTE_PURE
 static int
-iswnbspace (wint_t wc)
+maybe_c32isnbspace (char32_t wc)
 {
-  return ! posixly_correct
-         && (wc == 0x00A0 || wc == 0x2007
-             || wc == 0x202F || wc == 0x2060);
+  return ! posixly_correct && c32isnbspace (wc);
 }
 
 /* FILE is the name of the file (or null for standard input)
@@ -241,18 +297,35 @@ write_counts (uintmax_t lines,
   if (file)
     printf (" %s", strchr (file, '\n') ? quotef (file) : file);
   putchar ('\n');
+
+  if (ferror (stdout))
+    write_error ();
 }
 
 /* Read FD and return a summary.  */
 static struct wc_lines
 wc_lines (int fd)
 {
+#ifdef USE_AVX512_WC_LINECOUNT
+  static signed char use_avx512;
+  if (!use_avx512)
+    use_avx512 = avx512_supported () ? 1 : -1;
+  if (0 < use_avx512)
+    return wc_lines_avx512 (fd);
+#endif
 #ifdef USE_AVX2_WC_LINECOUNT
   static signed char use_avx2;
   if (!use_avx2)
     use_avx2 = avx2_supported () ? 1 : -1;
   if (0 < use_avx2)
     return wc_lines_avx2 (fd);
+#endif
+#ifdef USE_NEON_WC_LINECOUNT
+  static signed char use_neon;
+  if (!use_neon)
+    use_neon = neon_supported () ? 1 : -1;
+  if (0 < use_neon)
+    return wc_lines_neon (fd);
 #endif
 
   intmax_t lines = 0, bytes = 0;
@@ -296,10 +369,9 @@ wc_lines (int fd)
 
 /* Count words.  FILE_X is the name of the file (or null for standard
    input) that is open on descriptor FD.  *FSTATUS is its status.
-   CURRENT_POS is the current file offset if known, negative if unknown.
    Return true if successful.  */
 static bool
-wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
+wc (int fd, char const *file_x, struct fstatus *fstatus)
 {
   int err = 0;
   char buf[IO_BUFSIZE + 1];
@@ -351,12 +423,12 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
           && 0 <= fstatus->st.st_size)
         {
           off_t end_pos = fstatus->st.st_size;
+          off_t current_pos = lseek (fd, 0, SEEK_CUR);
           if (current_pos < 0)
-            current_pos = lseek (fd, 0, SEEK_CUR);
-
-          if (end_pos % page_size)
+            ;
+          else if (end_pos % page_size)
             {
-              /* We only need special handling of /proc and /sys files etc.
+              /* We need special handling of /proc and /sys files etc. only
                  when they're a multiple of PAGE_SIZE.  In the common case
                  for files with st_size not a multiple of PAGE_SIZE,
                  it's more efficient and accurate to use st_size.
@@ -364,19 +436,24 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
                  Be careful here.  The current position may actually be
                  beyond the end of the file.  As in the example above.  */
 
-              bytes = end_pos < current_pos ? 0 : end_pos - current_pos;
-              if (bytes && 0 <= lseek (fd, bytes, SEEK_CUR))
-                skip_read = true;
-              else
-                bytes = 0;
+              if (current_pos < end_pos)
+                {
+                  bytes = end_pos - current_pos;
+                  skip_read = true;
+                }
             }
-          else
+          else if (0 < end_pos)
             {
-              off_t hi_pos = (end_pos
-                              - end_pos % (STP_BLKSIZE (&fstatus->st) + 1));
-              if (0 <= current_pos && current_pos < hi_pos
-                  && 0 <= lseek (fd, hi_pos, SEEK_CUR))
+              off_t ep_1 = end_pos - 1;
+              off_t hi_pos = ep_1 - ep_1 % STP_BLKSIZE (&fstatus->st);
+              if (current_pos < hi_pos)
                 bytes = hi_pos - current_pos;
+            }
+
+          if (0 < bytes && lseek (fd, bytes, SEEK_CUR) < 0)
+            {
+              bytes = 0;
+              skip_read = false;
             }
         }
 
@@ -408,6 +485,8 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
       intmax_t linepos = 0;
       mbstate_t state; mbszero (&state);
       bool in_shift = false;
+      bool count_utf8 = !count_complicated && !print_lines
+                        && is_utf8_charset ();
       idx_t prev = 0; /* Number of bytes carried over from previous round.  */
 
       for (ssize_t bytes_read;
@@ -424,8 +503,21 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
           bytes += bytes_read;
           char const *p = buf;
           char const *plim = p + prev + bytes_read;
+          bool try_count_utf8 = count_utf8;
           do
             {
+              if (try_count_utf8 && !in_shift)
+                {
+                  /* Scan at most once per buffer, to avoid repeatedly
+                     scanning ASCII after decoding errors.  */
+                  try_count_utf8 = false;
+                  idx_t n = plim - p;
+                  chars += u8_count (p, &n);
+                  p += n;
+                  if (p == plim)
+                    break;
+                }
+
               char32_t wide_char;
               idx_t charbytes;
               bool single_byte;
@@ -440,6 +532,7 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
                 }
               else
                 {
+                  idx_t prev_bytes = prev;
                   idx_t scanbytes = plim - (p + prev);
                   size_t n = mbrtoc32 (&wide_char, p + prev, scanbytes, &state);
                   prev = 0;
@@ -479,7 +572,9 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
                       continue;
                     }
 
-                  charbytes = n + !n;
+                  /* Include bytes already consumed into STATE in an earlier
+                     read, but still present at P in the buffer.  */
+                  charbytes = prev_bytes + n + !n;
                   single_byte = charbytes == !in_shift;
                   in_shift = !mbsinit (&state);
                 }
@@ -511,7 +606,7 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
 
                 default:;
                   bool in_word2;
-                  if (single_byte)
+                  if (single_byte && wide_char <= UCHAR_MAX)
                     {
                       linepos += wc_isprint[wide_char];
                       in_word2 = !wc_isspace[wide_char];
@@ -526,8 +621,8 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
                           if (width > 0)
                             linepos += width;
                         }
-                      in_word2 = ! iswspace (wide_char)
-                                 && ! iswnbspace (wide_char);
+                      in_word2 = (! c32isspace (wide_char)
+                                  && ! maybe_c32isnbspace (wide_char));
                     }
 
                   /* Count words by counting word starts, i.e., each
@@ -625,11 +720,11 @@ wc (int fd, char const *file_x, struct fstatus *fstatus, off_t current_pos)
 static bool
 wc_file (char const *file, struct fstatus *fstatus)
 {
-  if (! file || STREQ (file, "-"))
+  if (! file || streq (file, "-"))
     {
       have_read_stdin = true;
       xset_binary_mode (STDIN_FILENO, O_BINARY);
-      return wc (STDIN_FILENO, file, fstatus, -1);
+      return wc (STDIN_FILENO, file, fstatus);
     }
   else
     {
@@ -641,7 +736,7 @@ wc_file (char const *file, struct fstatus *fstatus)
         }
       else
         {
-          bool ok = wc (fd, file, fstatus, 0);
+          bool ok = wc (fd, file, fstatus);
           if (close (fd) != 0)
             {
               error (0, errno, "%s", quotef (file));
@@ -672,7 +767,7 @@ get_input_fstatus (idx_t nfiles, char *const *file)
   else
     {
       for (idx_t i = 0; i < nfiles; i++)
-        fstatus[i].failed = (! file[i] || STREQ (file[i], "-")
+        fstatus[i].failed = (! file[i] || streq (file[i], "-")
                              ? fstat (STDIN_FILENO, &fstatus[i].st)
                              : stat (file[i], &fstatus[i].st));
     }
@@ -724,7 +819,7 @@ main (int argc, char **argv)
   int optc;
   idx_t nfiles;
   char **files;
-  char *files_from = nullptr;
+  char *files_from = NULL;
   struct fstatus *fstatus;
   struct Tokens tok;
 
@@ -739,15 +834,11 @@ main (int argc, char **argv)
   page_size = getpagesize ();
   /* Line buffer stdout to ensure lines are written atomically and immediately
      so that processes running in parallel do not intersperse their output.  */
-  setvbuf (stdout, nullptr, _IOLBF, 0);
+  setvbuf (stdout, NULL, _IOLBF, 0);
 
-  posixly_correct = (getenv ("POSIXLY_CORRECT") != nullptr);
+  posixly_correct = (getenv ("POSIXLY_CORRECT") != NULL);
 
-  print_lines = print_words = print_chars = print_bytes = false;
-  print_linelength = false;
-  total_lines = total_words = total_chars = total_bytes = max_line_length = 0;
-
-  while ((optc = getopt_long (argc, argv, "clLmw", longopts, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "clLmw", longopts, NULL)) != -1)
     switch (optc)
       {
       case 'c':
@@ -799,7 +890,7 @@ main (int argc, char **argv)
       wc_isprint[i] = !!isprint (i);
   if (print_words)
     for (int i = 0; i <= UCHAR_MAX; i++)
-      wc_isspace[i] = isspace (i) || iswnbspace (btoc32 (i));
+      wc_isspace[i] = isspace (i) || maybe_c32isnbspace (btoc32 (i));
 
   bool read_tokens = false;
   struct argv_iterator *ai;
@@ -817,12 +908,12 @@ main (int argc, char **argv)
           usage (EXIT_FAILURE);
         }
 
-      if (STREQ (files_from, "-"))
+      if (streq (files_from, "-"))
         stream = stdin;
       else
         {
           stream = fopen (files_from, "r");
-          if (stream == nullptr)
+          if (stream == NULL)
             error (EXIT_FAILURE, errno, _("cannot open %s for reading"),
                    quoteaf (files_from));
         }
@@ -845,14 +936,14 @@ main (int argc, char **argv)
         }
       else
         {
-          files = nullptr;
+          files = NULL;
           nfiles = 0;
           ai = argv_iter_init_stream (stream);
         }
     }
   else
     {
-      static char *stdin_only[] = { nullptr };
+      static char *stdin_only[] = { NULL };
       files = (optind < argc ? argv + optind : stdin_only);
       nfiles = (optind < argc ? argc - optind : 1);
       ai = argv_iter_init_argv (files);
@@ -873,11 +964,11 @@ main (int argc, char **argv)
   for (int i = 0; (file_name = argv_iter (ai, &ai_err)); i++)
     {
       bool skip_file = false;
-      if (files_from && STREQ (files_from, "-") && STREQ (file_name, "-"))
+      if (files_from && streq (files_from, "-") && streq (file_name, "-"))
         {
           /* Give a better diagnostic in an unusual case:
              printf - | wc --files0-from=- */
-          error (0, 0, _("when reading file names from stdin, "
+          error (0, 0, _("when reading file names from standard input, "
                          "no file name of %s allowed"),
                  quoteaf (file_name));
           skip_file = true;
@@ -889,7 +980,7 @@ main (int argc, char **argv)
              among many, knowing the record number may help.
              FIXME: currently print the record number only with
              --files0-from=FILE.  Maybe do it for argv, too?  */
-          if (files_from == nullptr)
+          if (files_from == NULL)
             error (0, 0, "%s", _("invalid zero-length file name"));
           else
             {
@@ -924,14 +1015,14 @@ main (int argc, char **argv)
       xalloc_die ();
 
     case AI_ERR_OK: default:
-      unreachable ();
+      affirm (false);
     }
 
   /* No arguments on the command line is fine.  That means read from stdin.
      However, no arguments on the --files0-from input stream is an error
      means don't read anything.  */
   if (ok && !files_from && argv_iter_n_args (ai) == 0)
-    ok &= wc_file (nullptr, &fstatus[0]);
+    ok &= wc_file (NULL, &fstatus[0]);
 
   if (read_tokens)
     readtokens0_free (&tok);
@@ -966,7 +1057,7 @@ main (int argc, char **argv)
 
       write_counts (total_lines, total_words, total_chars, total_bytes,
                     max_line_length,
-                    total_mode != total_only ? _("total") : nullptr);
+                    total_mode != total_only ? _("total") : NULL);
     }
 
   argv_iter_free (ai);

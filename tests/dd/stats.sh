@@ -1,7 +1,7 @@
 #!/bin/sh
 # Check stats output for SIG{INFO,USR1} and status=progress
 
-# Copyright (C) 2014-2025 Free Software Foundation, Inc.
+# Copyright (C) 2014-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,6 +37,16 @@ cleanup_()
   wait
 }
 
+# On GNU/Hurd, sending a signal every .01 seconds would lead to an
+# infinite loop with zero bytes being written.  Doubling the interval
+# to .02 seconds works fine.  Keep the smaller on other platforms where
+# it doesn't cause issues.
+if test "$(uname)" = GNU; then
+  siginfo_interval=.02
+else
+  siginfo_interval=.01
+fi
+
 for open in '' '1'; do
   > err || framework_failure_
 
@@ -56,7 +66,7 @@ for open in '' '1'; do
   # to race setting handler, or blocking on open of fifo.
   # Many signals also check that short reads are handled.
   until ! kill -s $SIGINFO $pid 2>/dev/null; do
-    sleep .01
+    sleep $siginfo_interval
   done
 
   wait

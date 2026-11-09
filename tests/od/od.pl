@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Exercise od
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,15 +18,15 @@
 
 use strict;
 
+my $limits = getlimits ();
+my $INTMAX_OFLOW = $limits->{INTMAX_OFLOW};
+
 (my $program_name = $0) =~ s|.*/||;
 
 # Turn off localization of executable's output.
 @ENV{qw(LANGUAGE LANG LC_ALL)} = ('C') x 3;
 
 my $prog = 'od';
-
-use Errno qw(ERANGE);
-my $ERANGE = do { local $! = ERANGE; "$!" };
 
 # Use a file in /proc whose size is not likely to
 # change between the wc and od invocations.
@@ -79,11 +79,11 @@ my @Tests =
 
      # Overflowing traditional offsets should be diagnosed.
      ['overflow-off-1', '-', '7' x 255, {IN_PIPE=>""}, {EXIT=>1},
-      {ERR=>"od: ".('7' x 255).": $ERANGE\n"}],
+      {ERR=>"od: ".('7' x 255).": $limits->{ERANGE}\n"}],
      ['overflow-off-2', '-', ('9' x 254).'.', {IN_PIPE=>""}, {EXIT=>1},
-      {ERR=>"od: ".('9' x 254).".: $ERANGE\n"}],
+      {ERR=>"od: ".('9' x 254).".: $limits->{ERANGE}\n"}],
      ['overflow-off-3', '-', '0x'.('f' x 253), {IN_PIPE=>""}, {EXIT=>1},
-      {ERR=>"od: 0x".('f' x 253).": $ERANGE\n"}],
+      {ERR=>"od: 0x".('f' x 253).": $limits->{ERANGE}\n"}],
 
      # Ensure that a large width does not cause trouble.
      # From coreutils-7.0 through coreutils-8.21, these would print
@@ -100,7 +100,47 @@ my @Tests =
       {ERR=>"$prog: invalid -w argument '-1'\n"}],
      ['invalid-w-3',   '-ww -An', {IN=>""}, {EXIT=>1},
       {ERR=>"$prog: invalid -w argument 'w'\n"}],
+
+     # Check that xstrtol_fatal calls quote to escape command line arguments.
+     # In coreutils-9.11 # and earlier this was not the case.
+     ['bad-j-quote-1', "-j 'a\t'", {IN=>""}, {EXIT=>1},
+      {ERR=>"$prog: invalid -j argument 'a\\t'\n"}],
+     ['bad-j-quote-2', "-j '1\t'", {IN=>""}, {EXIT=>1},
+      {ERR=>"$prog: invalid suffix in -j argument '1\\t'\n"}],
+
+     # With -S, offsets use the same width as in the normal dump.
+     ['S-Ax', '-Ax -S3', {IN=>"\001hello\000world\000ab\000"},
+      {OUT=>"000001 hello\n000007 world\n"}],
+     ['S-Ad', '-Ad -S3', {IN=>"\001hello\000world\000ab\000"},
+      {OUT=>"0000001 hello\n0000007 world\n"}],
+     ['S-Ao', '-Ao -S3', {IN=>"\001hello\000world\000ab\000"},
+      {OUT=>"0000001 hello\n0000007 world\n"}],
+
+     # Ensure that all remaining input is output following an input error.
+     # From coreutils-9.4 through coreutils-9.12, od would stop after the
+     # block being read, and then output an uninitialized or stale block.
+     ['read-err-1', '-An -c -w4', {IN=>{g=>'a'}}, 'missing',
+      {IN=>{h=>'bcdefghij'}}, {EXIT=>1},
+      {OUT=>"   a   b   c   d\n   e   f   g   h\n   i   j\n"},
+      {ERR=>"$prog: missing: $limits->{ENOENT}\n"}],
+
+     # Ensure the final offset is still printed after an input fails.
+     ['read-err-offset', '-c', {IN=>{g=>"a\n"}}, '.', {EXIT=>1},
+      {OUT=>"0000000   a  \\n\n0000002\n"},
+      {ERR=>"$prog: .: $limits->{EISDIR}\n"}],
     );
+
+push @Tests,
+  map {["$_-overflow", "-$_$INTMAX_OFLOW",
+        {IN_PIPE=>""}, {EXIT=>1},
+        {ERR=>"od: -$_ argument '$INTMAX_OFLOW' too large\n"}]} qw(j N S w);
+
+# Ensure an output type cannot be combined with --strings.
+push @Tests,
+  map {(my $name = $_) =~ tr/- //d;
+       ["S-type-$name", "--strings=1 $_", {IN=>"a\n"}, {EXIT=>1},
+        {ERR=>"$prog: no type may be specified when dumping strings\n"}]}
+    ('-b', '-c', '-d', '-i', '-l', '-o', '-s', '-x', '-t x1');
 
 my $save_temps = $ENV{DEBUG};
 my $verbose = $ENV{VERBOSE};

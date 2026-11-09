@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Test "stat --printf".
 
-# Copyright (C) 2005-2025 Free Software Foundation, Inc.
+# Copyright (C) 2005-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -55,6 +55,22 @@ my @Tests =
          {ERR=>"$prog: '%9%': invalid directive\n"}],
      ['err-2', "--printf=%9 .",        {EXIT => 1},
          {ERR=>"$prog: '%9': invalid directive\n"}],
+
+     # The format is interpreted as it is printed, so whatever precedes an
+     # invalid directive is output before the diagnostic.
+     ['err-3', "--printf=a%9 .",       {OUT=>"a"}, {EXIT => 1},
+         {ERR=>"$prog: '%9': invalid directive\n"}],
+     ['err-4', "--printf=a%9% .",      {OUT=>"a"}, {EXIT => 1},
+         {ERR=>"$prog: '%9%': invalid directive\n"}],
+     ['err-5', "--printf=%n%9 .",      {OUT=>"."}, {EXIT => 1},
+         {ERR=>"$prog: '%9': invalid directive\n"}],
+     # and --format adds no trailing newline when it stops early.
+     ['err-6', "--format=a%9 .",       {OUT=>"a"}, {EXIT => 1},
+         {ERR=>"$prog: '%9': invalid directive\n"}],
+
+     # The last of --printf and --format wins.
+     ['format-last', "--printf=X --format=Y .", {OUT=>"Y\n"}],
+     ['printf-last', "--format=Y --printf=X .", {OUT=>"X"}],
     );
 
 my $save_temps = $ENV{DEBUG};

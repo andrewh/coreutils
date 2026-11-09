@@ -1,7 +1,7 @@
 #!/bin/sh
 # Verify that internal failure in nice gives exact status.
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ print_ver_ nice env
 returns_ 125 nice -n 1 || fail=1 # missing command
 returns_ 125 nice --- || fail=1 # unknown option
 returns_ 125 nice -n 1a || fail=1 # invalid adjustment
+returns_ 125 nice -n 1+2-3 nice || fail=1 # invalid adjustment
 returns_ 2 nice sh -c 'exit 2' || fail=1 # exit status propagation
 returns_ 126 env . && { returns_ 126 nice . || fail=1; } # invalid command
 returns_ 127 nice no_such || fail=1 # no such command

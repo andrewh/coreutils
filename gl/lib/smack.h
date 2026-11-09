@@ -1,5 +1,5 @@
 /* Include and determine availability of smack routines
-   Copyright (C) 2013-2025 Free Software Foundation, Inc.
+   Copyright (C) 2013-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ static inline bool
 is_smack_enabled (void)
 {
 #ifdef HAVE_SMACK
-  return smack_smackfs_path () != nullptr;
+  return smack_smackfs_path () != NULL;
 #else
   return false;
 #endif

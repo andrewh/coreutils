@@ -1,7 +1,7 @@
 #!/bin/sh
 # Try to remove '/' recursively.
 
-# Copyright (C) 2013-2025 Free Software Foundation, Inc.
+# Copyright (C) 2013-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,8 +41,8 @@ unset CU_TEST_SKIP_EXIT
 USE_GDB=1
 
 if test $USE_GDB = 1; then
-  case $host_triplet in
-    *darwin*) skip_ 'avoiding due to potentially non functioning gdb' ;;
+  case $host_os in
+    darwin*) skip_ 'avoiding due to potentially non functioning gdb' ;;
     *) ;;
   esac
 
@@ -85,7 +85,7 @@ gcc_shared_ k.c k.so \
   || framework_failure_ 'failed to build shared library'
 
 # Note breakpoint commands don't work in batch mode
-# https://sourceware.org/bugzilla/show_bug.cgi?id=10079
+# https://sourceware.org/PR10079
 # So we use python to script behavior upon hitting the breakpoint
 cat > bp.py <<'EOF.py' || framework_failure_
 def breakpoint_handler (event):

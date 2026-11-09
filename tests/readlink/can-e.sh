@@ -1,7 +1,7 @@
 #!/bin/sh
 # tests for canonicalize-existing mode (readlink -e).
 
-# Copyright (C) 2004-2025 Free Software Foundation, Inc.
+# Copyright (C) 2004-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -100,5 +100,15 @@ for p in "" "$pwd/$tmp/"; do
   v=$(returns_ 1 readlink -e "${p}link4/more") || fail=1
   test -z "$v" || fail=1
 done
+
+# The last of -e, -f and -m wins.
+readlink -e -f missing > out || fail=1
+echo "$my_pwd/$tmp/missing" > exp || framework_failure_
+compare exp out || fail=1
+returns_ 1 readlink -f -e missing > out || fail=1
+compare /dev/null out || fail=1
+readlink -e -m missing/sub > out || fail=1
+echo "$my_pwd/$tmp/missing/sub" > exp || framework_failure_
+compare exp out || fail=1
 
 Exit $fail

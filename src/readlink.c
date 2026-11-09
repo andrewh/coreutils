@@ -1,5 +1,5 @@
 /* readlink -- display value of a symbolic link.
-   Copyright (C) 2002-2025 Free Software Foundation, Inc.
+   Copyright (C) 2002-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include <getopt.h>
 #include <sys/types.h>
 
+#include "argmatch.h"  /* argmatch($QUOTING_STYLE).  */
 #include "system.h"
 #include "canonicalize.h"
 #include "areadlink.h"
@@ -36,19 +37,22 @@ static bool no_newline;
 /* If true, report error messages.  */
 static bool verbose;
 
+/* If true, quote output according to the selected quoting style.  */
+static bool quote_output;
+
 static struct option const longopts[] =
 {
-  {"canonicalize", no_argument, nullptr, 'f'},
-  {"canonicalize-existing", no_argument, nullptr, 'e'},
-  {"canonicalize-missing", no_argument, nullptr, 'm'},
-  {"no-newline", no_argument, nullptr, 'n'},
-  {"quiet", no_argument, nullptr, 'q'},
-  {"silent", no_argument, nullptr, 's'},
-  {"verbose", no_argument, nullptr, 'v'},
-  {"zero", no_argument, nullptr, 'z'},
+  {"canonicalize", no_argument, NULL, 'f'},
+  {"canonicalize-existing", no_argument, NULL, 'e'},
+  {"canonicalize-missing", no_argument, NULL, 'm'},
+  {"no-newline", no_argument, NULL, 'n'},
+  {"quiet", no_argument, NULL, 'q'},
+  {"silent", no_argument, NULL, 's'},
+  {"verbose", no_argument, NULL, 'v'},
+  {"zero", no_argument, NULL, 'z'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -61,29 +65,47 @@ usage (int status)
       printf (_("Usage: %s [OPTION]... FILE...\n"), program_name);
       fputs (_("Print value of a symbolic link or canonical file name\n\n"),
              stdout);
-      fputs (_("\
-  -f, --canonicalize            canonicalize by following every symlink in\n\
-                                every component of the given name recursively;\
-\n\
-                                all but the last component must exist\n\
-  -e, --canonicalize-existing   canonicalize by following every symlink in\n\
-                                every component of the given name recursively,\
-\n\
-                                all components must exist\n\
-"), stdout);
-      fputs (_("\
-  -m, --canonicalize-missing    canonicalize by following every symlink in\n\
-                                every component of the given name recursively,\
-\n\
-                                without requirements on components existence\n\
-  -n, --no-newline              do not output the trailing delimiter\n\
+      oputs (_("\
+  -f, --canonicalize\n\
+         canonicalize by following every symlink\n\
+         in every component of the given name recursively;\n\
+         all but the last component must exist\n\
+"));
+      oputs (_("\
+  -e, --canonicalize-existing\n\
+         canonicalize by following every symlink\n\
+         in every component of the given name recursively;\n\
+         all components must exist\n\
+"));
+      oputs (_("\
+  -m, --canonicalize-missing\n\
+         canonicalize by following every symlink\n\
+         in every component of the given name recursively,\n\
+         without requirements on components existence\n\
+"));
+      oputs (_("\
+  -n, --no-newline\n\
+         do not output the trailing delimiter\n\
+"));
+      oputs (_("\
   -q, --quiet\n\
-  -s, --silent                  suppress most error messages (on by default)\n\
-  -v, --verbose                 report error messages\n\
-  -z, --zero                    end each output line with NUL, not newline\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+"));
+      oputs (_("\
+  -s, --silent\n\
+         suppress most error messages\n\
+         (on by default if POSIXLY_CORRECT is not set)\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         report error messages\n\
+         (on by default if POSIXLY_CORRECT is set)\n\
+"));
+      oputs (_("\
+  -z, --zero\n\
+         end each output line with NUL, not newline\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -106,7 +128,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((optc = getopt_long (argc, argv, "efmnqsvz", longopts, nullptr)) != -1)
+  while ((optc = getopt_long (argc, argv, "efmnqsvz", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -152,6 +174,23 @@ main (int argc, char **argv)
       no_newline = false;
     }
 
+  if (!use_nuls && isatty (STDOUT_FILENO))
+    {
+      int qs = getenv_quoting_style ();
+      if (qs < 0)
+        qs = shell_escape_quoting_style;
+      if (qs != literal_quoting_style)
+        {
+          set_quoting_style (NULL, qs);
+          quote_output = true;
+        }
+    }
+
+  /* POSIX requires a diagnostic message written to standard error and a
+     non-zero exit status when given a file that is not a symbolic link.  */
+  if (getenv ("POSIXLY_CORRECT") != NULL)
+    verbose = true;
+
   for (; optind < argc; ++optind)
     {
       char const *fname = argv[optind];
@@ -160,10 +199,12 @@ main (int argc, char **argv)
                      : areadlink_with_size (fname, 63));
       if (value)
         {
-          fputs (value, stdout);
+          fputs (quote_output ? quoteN (value) : value, stdout);
           if (! no_newline)
             putchar (use_nuls ? '\0' : '\n');
           free (value);
+          if (ferror (stdout))
+            write_error ();
         }
       else
         {

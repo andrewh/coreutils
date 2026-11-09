@@ -2,7 +2,7 @@
 # 4.1.1 and 4.1.2 had a bug whereby some recursive listings
 # didn't include a blank line between per-directory groups of files.
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -58,5 +58,12 @@ y:
 EOF
 
 compare exp out || fail=1
+
+# Check that we don't run out of file descriptors when visiting
+# directories recursively.
+mkdir -p $(seq 30 | tr '\n' '/') || framework_failure_
+(ulimit -n 20; ls -R 1 > out 2> err) || fail=1
+test $(wc -l < out) = 88 || fail=1
+test $(wc -l < err) = 0 || fail=1
 
 Exit $fail

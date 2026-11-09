@@ -1,6 +1,6 @@
 /* uname -- print system information
 
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -79,29 +79,32 @@
 /* Operating system.  */
 #define PRINT_OPERATING_SYSTEM 128
 
+static bool labeled = false;
+
 static struct option const uname_long_options[] =
 {
-  {"all", no_argument, nullptr, 'a'},
-  {"kernel-name", no_argument, nullptr, 's'},
-  {"sysname", no_argument, nullptr, 's'},	/* Obsolescent.  */
-  {"nodename", no_argument, nullptr, 'n'},
-  {"kernel-release", no_argument, nullptr, 'r'},
-  {"release", no_argument, nullptr, 'r'},  /* Obsolescent.  */
-  {"kernel-version", no_argument, nullptr, 'v'},
-  {"machine", no_argument, nullptr, 'm'},
-  {"processor", no_argument, nullptr, 'p'},
-  {"hardware-platform", no_argument, nullptr, 'i'},
-  {"operating-system", no_argument, nullptr, 'o'},
+  {"all", no_argument, NULL, 'a'},
+  {"all-labeled", no_argument, NULL, 'A'},
+  {"kernel-name", no_argument, NULL, 's'},
+  {"sysname", no_argument, NULL, 's'},	/* Obsolescent.  */
+  {"nodename", no_argument, NULL, 'n'},
+  {"kernel-release", no_argument, NULL, 'r'},
+  {"release", no_argument, NULL, 'r'},  /* Obsolescent.  */
+  {"kernel-version", no_argument, NULL, 'v'},
+  {"machine", no_argument, NULL, 'm'},
+  {"processor", no_argument, NULL, 'p'},
+  {"hardware-platform", no_argument, NULL, 'i'},
+  {"operating-system", no_argument, NULL, 'o'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 static struct option const arch_long_options[] =
 {
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -118,19 +121,39 @@ usage (int status)
           fputs (_("\
 Print certain system information.  With no OPTION, same as -s.\n\
 \n\
+"), stdout);
+          oputs (_("\
   -a, --all                print all information, in the following order,\n\
-                             except omit -p and -i if unknown:\n\
+                             except omit -p and -i if unknown\n\
+"));
+          oputs (_("\
+  -A, --all-labeled        print all information, one labeled field per line,\n\
+                             except omit -p and -i if unknown\n\
+"));
+          oputs (_("\
   -s, --kernel-name        print the kernel name\n\
+"));
+          oputs (_("\
   -n, --nodename           print the network node hostname\n\
+"));
+          oputs (_("\
   -r, --kernel-release     print the kernel release\n\
-"), stdout);
-          fputs (_("\
+"));
+          oputs (_("\
   -v, --kernel-version     print the kernel version\n\
+"));
+          oputs (_("\
   -m, --machine            print the machine hardware name\n\
+"));
+          oputs (_("\
   -p, --processor          print the processor type (non-portable)\n\
+"));
+          oputs (_("\
   -i, --hardware-platform  print the hardware platform (non-portable)\n\
+"));
+          oputs (_("\
   -o, --operating-system   print the operating system\n\
-"), stdout);
+"));
         }
       else
         {
@@ -140,8 +163,8 @@ Print machine architecture.\n\
 "), stdout);
         }
 
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -151,13 +174,20 @@ Print machine architecture.\n\
    printed.  */
 
 static void
-print_element (char const *element)
+print_element (char const *element, char const *label)
 {
-  static bool printed;
-  if (printed)
-    putchar (' ');
-  printed = true;
-  fputs (element, stdout);
+  if (labeled)
+    {
+      printf ("%s: %s\n", label, element);
+    }
+  else
+    {
+      static bool printed;
+      if (printed)
+        putchar (' ');
+      printed = true;
+      fputs (element, stdout);
+    }
 }
 
 /* Print ELEMENT, preceded by a space if something has already been
@@ -165,7 +195,9 @@ print_element (char const *element)
    value instead of ELEMENT.  */
 
 static void
-print_element_env (char const *element, MAYBE_UNUSED char const *envvar)
+print_element_env (char const *element,
+                   MAYBE_UNUSED char const *envvar,
+                   char const *label)
 {
 #ifdef __APPLE__
   if (envvar)
@@ -175,7 +207,7 @@ print_element_env (char const *element, MAYBE_UNUSED char const *envvar)
         element = val;
     }
 #endif
-  print_element (element);
+  print_element (element, label);
 }
 
 
@@ -191,7 +223,7 @@ decode_switches (int argc, char **argv)
   if (uname_mode == UNAME_ARCH)
     {
       while ((c = getopt_long (argc, argv, "",
-                               arch_long_options, nullptr))
+                               arch_long_options, NULL))
              != -1)
         {
           switch (c)
@@ -208,14 +240,20 @@ decode_switches (int argc, char **argv)
     }
   else
     {
-      while ((c = getopt_long (argc, argv, "asnrvmpio",
-                               uname_long_options, nullptr))
+      while ((c = getopt_long (argc, argv, "asnrvmpioA",
+                               uname_long_options, NULL))
              != -1)
         {
           switch (c)
             {
             case 'a':
               toprint = UINT_MAX;
+              labeled = false;
+              break;
+
+            case 'A':
+              toprint = UINT_MAX;
+              labeled = true;
               break;
 
             case 's':
@@ -300,15 +338,15 @@ main (int argc, char **argv)
         error (EXIT_FAILURE, errno, _("cannot get system name"));
 
       if (toprint & PRINT_KERNEL_NAME)
-        print_element_env (name.sysname, "UNAME_SYSNAME");
+        print_element_env (name.sysname, "UNAME_SYSNAME", _("Kernel name"));
       if (toprint & PRINT_NODENAME)
-        print_element_env (name.nodename, "UNAME_NODENAME");
+        print_element_env (name.nodename, "UNAME_NODENAME", _("Node name"));
       if (toprint & PRINT_KERNEL_RELEASE)
-        print_element_env (name.release, "UNAME_RELEASE");
+        print_element_env (name.release, "UNAME_RELEASE", _("Kernel release"));
       if (toprint & PRINT_KERNEL_VERSION)
-        print_element_env (name.version, "UNAME_VERSION");
+        print_element_env (name.version, "UNAME_VERSION", _("Kernel version"));
       if (toprint & PRINT_MACHINE)
-        print_element_env (name.machine, "UNAME_MACHINE");
+        print_element_env (name.machine, "UNAME_MACHINE", _("Machine"));
     }
 
   if (toprint & PRINT_PROCESSOR)
@@ -342,7 +380,7 @@ main (int argc, char **argv)
         }
 #endif
       if (! (toprint == UINT_MAX && element == unknown))
-        print_element (element);
+        print_element (element, _("Processor"));
     }
 
   if (toprint & PRINT_HARDWARE_PLATFORM)
@@ -367,13 +405,14 @@ main (int argc, char **argv)
         }
 #endif
       if (! (toprint == UINT_MAX && element == unknown))
-        print_element (element);
+        print_element (element, _("Hardware platform"));
     }
 
   if (toprint & PRINT_OPERATING_SYSTEM)
-    print_element (HOST_OPERATING_SYSTEM);
+    print_element (HOST_OPERATING_SYSTEM, _("Operating system"));
 
-  putchar ('\n');
+  if (!labeled)
+    putchar ('\n');
 
   return EXIT_SUCCESS;
 }

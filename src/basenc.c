@@ -1,5 +1,5 @@
 /* Base64, base32, and similar encoding/decoding strings or files.
-   Copyright (C) 2004-2025 Free Software Foundation, Inc.
+   Copyright (C) 2004-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <sys/types.h>
+#include <gmp.h>
 
 #include "system.h"
 #include "assure.h"
@@ -28,7 +29,6 @@
 #include "fadvise.h"
 #include "quote.h"
 #include "xstrtol.h"
-#include "xdectoint.h"
 #include "xbinary-io.h"
 
 #if BASE_TYPE == 42
@@ -61,6 +61,7 @@ enum
 {
   BASE64_OPTION = CHAR_MAX + 1,
   BASE64URL_OPTION,
+  BASE58_OPTION,
   BASE32_OPTION,
   BASE32HEX_OPTION,
   BASE16_OPTION,
@@ -72,22 +73,23 @@ enum
 
 static struct option const long_options[] =
 {
-  {"decode", no_argument, 0, 'd'},
-  {"wrap", required_argument, 0, 'w'},
-  {"ignore-garbage", no_argument, 0, 'i'},
+  {"decode", no_argument, NULL, 'd'},
+  {"wrap", required_argument, NULL, 'w'},
+  {"ignore-garbage", no_argument, NULL, 'i'},
 #if BASE_TYPE == 42
-  {"base64",    no_argument, 0, BASE64_OPTION},
-  {"base64url", no_argument, 0, BASE64URL_OPTION},
-  {"base32",    no_argument, 0, BASE32_OPTION},
-  {"base32hex", no_argument, 0, BASE32HEX_OPTION},
-  {"base16",    no_argument, 0, BASE16_OPTION},
-  {"base2msbf", no_argument, 0, BASE2MSBF_OPTION},
-  {"base2lsbf", no_argument, 0, BASE2LSBF_OPTION},
-  {"z85",       no_argument, 0, Z85_OPTION},
+  {"base64",    no_argument, NULL, BASE64_OPTION},
+  {"base64url", no_argument, NULL, BASE64URL_OPTION},
+  {"base58",    no_argument, NULL, BASE58_OPTION},
+  {"base32",    no_argument, NULL, BASE32_OPTION},
+  {"base32hex", no_argument, NULL, BASE32HEX_OPTION},
+  {"base16",    no_argument, NULL, BASE16_OPTION},
+  {"base2msbf", no_argument, NULL, BASE2MSBF_OPTION},
+  {"base2lsbf", no_argument, NULL, BASE2LSBF_OPTION},
+  {"z85",       no_argument, NULL, Z85_OPTION},
 #endif
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -114,43 +116,62 @@ Base%d encode or decode FILE, or standard input, to standard output.\n\
       emit_stdin_note ();
       emit_mandatory_arg_note ();
 #if BASE_TYPE == 42
-      fputs (_("\
-      --base64          same as 'base64' program (RFC4648 section 4)\n\
-"), stdout);
-      fputs (_("\
-      --base64url       file- and url-safe base64 (RFC4648 section 5)\n\
-"), stdout);
-      fputs (_("\
-      --base32          same as 'base32' program (RFC4648 section 6)\n\
-"), stdout);
-      fputs (_("\
-      --base32hex       extended hex alphabet base32 (RFC4648 section 7)\n\
-"), stdout);
-      fputs (_("\
-      --base16          hex encoding (RFC4648 section 8)\n\
-"), stdout);
-      fputs (_("\
-      --base2msbf       bit string with most significant bit (msb) first\n\
-"), stdout);
-      fputs (_("\
-      --base2lsbf       bit string with least significant bit (lsb) first\n\
-"), stdout);
+      oputs (_("\
+      --base64\n\
+         same as base64(1) program (RFC4648 section 4)\n\
+"));
+      oputs (_("\
+      --base64url\n\
+         file- and url-safe base64 (RFC4648 section 5)\n\
+"));
+      oputs (_("\
+      --base58\n\
+         visually unambiguous base58 encoding\n\
+"));
+      oputs (_("\
+      --base32\n\
+         same as base32(1) program (RFC4648 section 6)\n\
+"));
+      oputs (_("\
+      --base32hex\n\
+         extended hex alphabet base32 (RFC4648 section 7)\n\
+"));
+      oputs (_("\
+      --base16\n\
+         hex encoding (RFC4648 section 8)\n\
+"));
+      oputs (_("\
+      --base2msbf\n\
+         bit string with most significant bit (msb) first\n\
+"));
+      oputs (_("\
+      --base2lsbf\n\
+         bit string with least significant bit (lsb) first\n\
+"));
 #endif
-      fputs (_("\
-  -d, --decode          decode data\n\
-  -i, --ignore-garbage  when decoding, ignore non-alphabet characters\n\
-  -w, --wrap=COLS       wrap encoded lines after COLS character (default 76).\n\
-                          Use 0 to disable line wrapping\n\
-"), stdout);
+      oputs (_("\
+  -d, --decode\n\
+         decode data\n\
+"));
+      oputs (_("\
+  -i, --ignore-garbage\n\
+         when decoding, ignore non-alphabet characters\n\
+"));
+      oputs (_("\
+  -w, --wrap=COLS\n\
+         wrap encoded lines after COLS character (default 76).\n\
+         Use 0 to disable line wrapping\n\
+"));
 #if BASE_TYPE == 42
-      fputs (_("\
-      --z85             ascii85-like encoding (ZeroMQ spec:32/Z85);\n\
-                        when encoding, input length must be a multiple of 4;\n\
-                        when decoding, input length must be a multiple of 5\n\
-"), stdout);
+      oputs (_("\
+      --z85\n\
+         ascii85-like encoding (ZeroMQ spec:32/Z85);\n\
+         when encoding, input length must be a multiple of 4;\n\
+         when decoding, input length must be a multiple of 5\n\
+"));
 #endif
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
 #if BASE_TYPE == 42
       fputs (_("\
 \n\
@@ -216,6 +237,7 @@ static_assert (DEC_BLOCKSIZE % 40 == 0); /* Complete encoded blocks are used. */
 # define base_decode_context base32_decode_context
 # define base_decode_ctx_init base32_decode_ctx_init
 # define base_decode_ctx base32_decode_ctx
+# define base_decode_ctx_finalize decode_ctx_finalize
 # define isubase isubase32
 #elif BASE_TYPE == 64
 # define BASE_LENGTH BASE64_LENGTH
@@ -232,6 +254,7 @@ static_assert (DEC_BLOCKSIZE % 12 == 0); /* Complete encoded blocks are used. */
 # define base_decode_context base64_decode_context
 # define base_decode_ctx_init base64_decode_ctx_init
 # define base_decode_ctx base64_decode_ctx
+# define base_decode_ctx_finalize decode_ctx_finalize
 # define isubase isubase64
 #elif BASE_TYPE == 42
 
@@ -245,7 +268,7 @@ static_assert (DEC_BLOCKSIZE % 12 == 0); /* Complete encoded blocks are used. */
 static_assert (DEC_BLOCKSIZE % 40 == 0); /* complete encoded blocks for base32*/
 static_assert (DEC_BLOCKSIZE % 12 == 0); /* complete encoded blocks for base64*/
 
-static int (*base_length) (int i);
+static idx_t (*base_length) (idx_t len);
 static int (*required_padding) (int i);
 static bool (*isubase) (unsigned char ch);
 static void (*base_encode) (char const *restrict in, idx_t inlen,
@@ -263,20 +286,28 @@ struct z85_decode_context
   unsigned char octets[5];
 };
 
+struct base58_context
+{
+  idx_t size;
+  idx_t capacity;
+  unsigned char *buf COUNTED_BY (capacity);
+};
+
 struct base2_decode_context
 {
   unsigned char octet;
+  int bit_pos;
 };
 
 struct base_decode_context
 {
-  int i; /* will be updated manually */
   union {
     struct base64_decode_context base64;
     struct base32_decode_context base32;
     struct base16_decode_context base16;
     struct base2_decode_context base2;
     struct z85_decode_context z85;
+    struct base58_context base58;
   } ctx;
   char *inbuf;
   idx_t bufsize;
@@ -285,15 +316,134 @@ static void (*base_decode_ctx_init) (struct base_decode_context *ctx);
 static bool (*base_decode_ctx) (struct base_decode_context *ctx,
                                 char const *restrict in, idx_t inlen,
                                 char *restrict out, idx_t *outlen);
+static bool (*base_decode_ctx_finalize) (struct base_decode_context *ctx,
+                                         char *restrict *out, idx_t *outlen);
+
+struct base_encode_context
+{
+  union {
+    struct base58_context base58;
+  } ctx;
+};
+
+static void (*base_encode_ctx_init) (struct base_encode_context *ctx);
+static bool (*base_encode_ctx) (struct base_encode_context *ctx,
+                                char const *restrict in, idx_t inlen,
+                                char *restrict out, idx_t *outlen);
+static bool (*base_encode_ctx_finalize) (struct base_encode_context *ctx,
+                                         char *restrict *out, idx_t *outlen);
+
+static bool
+no_padding (MAYBE_UNUSED struct base_decode_context *ctx)
+{
+  return false;
+}
+
+static int
+no_pending_length (MAYBE_UNUSED struct base_decode_context *ctx)
+{
+  return 0;
+}
+#endif
+
+#if BASE_TYPE == 42
+static bool (*has_padding) (struct base_decode_context *ctx);
+static int (*get_pending_length) (struct base_decode_context *ctx);
+
+static bool
+base64_ctx_has_padding (struct base_decode_context *ctx)
+{
+  return ctx->ctx.base64.i && ctx->ctx.base64.buf[ctx->ctx.base64.i - 1] == '=';
+}
+
+static bool
+base32_ctx_has_padding (struct base_decode_context *ctx)
+{
+  return ctx->ctx.base32.i && ctx->ctx.base32.buf[ctx->ctx.base32.i - 1] == '=';
+}
+
+static int
+base64_ctx_get_pending_length (struct base_decode_context *ctx)
+{
+  return ctx->ctx.base64.i;
+}
+
+static int
+base32_ctx_get_pending_length (struct base_decode_context *ctx)
+{
+  return ctx->ctx.base32.i;
+}
+
+static int
+base16_ctx_get_pending_length (MAYBE_UNUSED struct base_decode_context *ctx)
+{
+  return 1; /* Always check nibble state.  */
+}
+
+static int
+z85_ctx_get_pending_length (struct base_decode_context *ctx)
+{
+  return ctx->ctx.z85.i;
+}
+
+static int
+base2_ctx_get_pending_length (struct base_decode_context *ctx)
+{
+  return ctx->ctx.base2.bit_pos;
+}
+#else
+static bool
+has_padding (struct base_decode_context *ctx)
+{
+  return ctx->i && ctx->buf[ctx->i - 1] == '=';
+}
+
+static int
+get_pending_length (struct base_decode_context *ctx)
+{
+  return ctx->i;
+}
 #endif
 
 
+/* Process any pending data in CTX, while auto padding if appropriate.
+   Return TRUE on success, FALSE on failure.  */
 
+static bool
+decode_ctx_finalize (struct base_decode_context *ctx,
+                     char *restrict *out, idx_t *outlen)
+{
+  if (get_pending_length (ctx) == 0)
+    {
+      *outlen = 0;
+      return true;
+    }
+
+  /* Auto-pad input and flush the context */
+  char padbuf[8] ATTRIBUTE_NONSTRING = "========";
+  idx_t pending_len = get_pending_length (ctx);
+  idx_t auto_padding = REQUIRED_PADDING (pending_len);
+  idx_t n = *outlen;
+  bool result;
+
+  if (auto_padding && ! has_padding (ctx))
+    {
+      affirm (auto_padding <= sizeof (padbuf));
+      result = base_decode_ctx (ctx, padbuf, auto_padding, *out, &n);
+    }
+  else
+    {
+      result = base_decode_ctx (ctx, "", 0, *out, &n);
+    }
+
+  *outlen = n;
+  return result;
+}
 
 #if BASE_TYPE == 42
 
-static int
-base64_length_wrapper (int len)
+static idx_t
+base64_length_wrapper (idx_t len)
 {
   return BASE64_LENGTH (len);
 }
@@ -309,9 +459,7 @@ base64_decode_ctx_wrapper (struct base_decode_context *ctx,
                            char const *restrict in, idx_t inlen,
                            char *restrict out, idx_t *outlen)
 {
-  bool b = base64_decode_ctx (&ctx->ctx.base64, in, inlen, out, outlen);
-  ctx->i = ctx->ctx.base64.i;
-  return b;
+  return base64_decode_ctx (&ctx->ctx.base64, in, inlen, out, outlen);
 }
 
 static void
@@ -387,17 +535,14 @@ base64url_decode_ctx_wrapper (struct base_decode_context *ctx,
       ++p;
     }
 
-  bool b = base64_decode_ctx (&ctx->ctx.base64, ctx->inbuf, inlen,
-                              out, outlen);
-  ctx->i = ctx->ctx.base64.i;
-
-  return b;
+  return base64_decode_ctx (&ctx->ctx.base64, ctx->inbuf, inlen,
+                            out, outlen);
 }
 
 
 
-static int
-base32_length_wrapper (int len)
+static idx_t
+base32_length_wrapper (idx_t len)
 {
   return BASE32_LENGTH (len);
 }
@@ -413,9 +558,7 @@ base32_decode_ctx_wrapper (struct base_decode_context *ctx,
                            char const *restrict in, idx_t inlen,
                            char *restrict out, idx_t *outlen)
 {
-  bool b = base32_decode_ctx (&ctx->ctx.base32, in, inlen, out, outlen);
-  ctx->i = ctx->ctx.base32.i;
-  return b;
+  return base32_decode_ctx (&ctx->ctx.base32, in, inlen, out, outlen);
 }
 
 /* ABCDEFGHIJKLMNOPQRSTUVWXYZ234567
@@ -502,17 +645,16 @@ base32hex_decode_ctx_wrapper (struct base_decode_context *ctx,
     {
       if (isubase32hex (*in))
         *p = base32_hex_to_norm[*in - 0x30];
+      else if (isubase32 (*in))
+        *p = '0'; /* Ensure base32 rejects non hex variant.  */
       else
         *p = *in;
       ++p;
       ++in;
     }
 
-  bool b = base32_decode_ctx (&ctx->ctx.base32, ctx->inbuf, inlen,
-                              out, outlen);
-  ctx->i = ctx->ctx.base32.i;
-
-  return b;
+  return base32_decode_ctx (&ctx->ctx.base32, ctx->inbuf, inlen,
+                            out, outlen);
 }
 /* With this approach this file works independent of the charset used
    (think EBCDIC).  However, it does assume that the characters in the
@@ -615,8 +757,8 @@ isubase16 (unsigned char ch)
   return ch < sizeof base16_to_int && 0 <= base16_to_int[ch];
 }
 
-static int
-base16_length (int len)
+static idx_t
+base16_length (idx_t len)
 {
   return len * 2;
 }
@@ -626,7 +768,7 @@ static void
 base16_encode (char const *restrict in, idx_t inlen,
                char *restrict out, idx_t outlen)
 {
-  static const char base16[16] _GL_ATTRIBUTE_NONSTRING = "0123456789ABCDEF";
+  static const char base16[16] ATTRIBUTE_NONSTRING = "0123456789ABCDEF";
 
   while (inlen && outlen)
     {
@@ -645,7 +787,6 @@ base16_decode_ctx_init (struct base_decode_context *ctx)
 {
   init_inbuf (ctx);
   ctx->ctx.base16.nibble = -1;
-  ctx->i = 1;
 }
 
 
@@ -696,22 +837,23 @@ base16_decode_ctx (struct base_decode_context *ctx,
 
 
 
-
-static int
-z85_length (int len)
+ATTRIBUTE_PURE
+static idx_t
+z85_length (idx_t len)
 {
   /* Z85 does not allow padding, so no need to round to highest integer.  */
-  int outlen = (len * 5) / 4;
-  return outlen;
+  idx_t z85_len = (len * 5) / 4;
+  affirm (0 <= z85_len);
+  return z85_len;
 }
 
 static bool
 isuz85 (unsigned char ch)
 {
-  return c_isalnum (ch) || strchr (".-:+=^!/*?&<>()[]{}@%$#", ch) != nullptr;
+  return c_isalnum (ch) || strchr (".-:+=^!/*?&<>()[]{}@%$#", ch) != NULL;
 }
 
-static char const z85_encoding[85] _GL_ATTRIBUTE_NONSTRING =
+static char const z85_encoding[85] ATTRIBUTE_NONSTRING =
   "0123456789"
   "abcdefghijklmnopqrstuvwxyz"
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -773,7 +915,6 @@ z85_decode_ctx_init (struct base_decode_context *ctx)
 {
   init_inbuf (ctx);
   ctx->ctx.z85.i = 0;
-  ctx->i = 1;
 }
 
 
@@ -882,7 +1023,6 @@ z85_decode_ctx (struct base_decode_context *ctx,
           ctx->ctx.z85.i = 0;
         }
     }
-  ctx->i = ctx->ctx.z85.i;
   return true;
 }
 
@@ -893,8 +1033,8 @@ isubase2 (unsigned char ch)
   return ch == '0' || ch == '1';
 }
 
-static int
-base2_length (int len)
+static idx_t
+base2_length (idx_t len)
 {
   return len * 8;
 }
@@ -942,7 +1082,7 @@ base2_decode_ctx_init (struct base_decode_context *ctx)
 {
   init_inbuf (ctx);
   ctx->ctx.base2.octet = 0;
-  ctx->i = 0;
+  ctx->ctx.base2.bit_pos = 0;
 }
 
 
@@ -959,7 +1099,7 @@ base2lsbf_decode_ctx (struct base_decode_context *ctx,
      if there is a dangling bit - we are missing some bits,
      so return false - indicating an invalid input.  */
   if (inlen == 0)
-    return ctx->i == 0;
+    return ctx->ctx.base2.bit_pos == 0;
 
   while (inlen--)
     {
@@ -973,15 +1113,15 @@ base2lsbf_decode_ctx (struct base_decode_context *ctx,
         return false;
 
       bool bit = (*in == '1');
-      ctx->ctx.base2.octet |= bit << ctx->i;
-      ++ctx->i;
+      ctx->ctx.base2.octet |= bit << ctx->ctx.base2.bit_pos;
+      ++ctx->ctx.base2.bit_pos;
 
-      if (ctx->i == 8)
+      if (ctx->ctx.base2.bit_pos == 8)
         {
           *out++ = ctx->ctx.base2.octet;
           ctx->ctx.base2.octet = 0;
           ++*outlen;
-          ctx->i = 0;
+          ctx->ctx.base2.bit_pos = 0;
         }
 
       ++in;
@@ -1003,7 +1143,7 @@ base2msbf_decode_ctx (struct base_decode_context *ctx,
      if there is a dangling bit - we are missing some bits,
      so return false - indicating an invalid input.  */
   if (inlen == 0)
-    return ctx->i == 0;
+    return ctx->ctx.base2.bit_pos == 0;
 
   while (inlen--)
     {
@@ -1017,23 +1157,286 @@ base2msbf_decode_ctx (struct base_decode_context *ctx,
         return false;
 
       bool bit = (*in == '1');
-      if (ctx->i == 0)
-        ctx->i = 8;
-      --ctx->i;
-      ctx->ctx.base2.octet |= bit << ctx->i;
+      if (ctx->ctx.base2.bit_pos == 0)
+        ctx->ctx.base2.bit_pos = 8;
+      --ctx->ctx.base2.bit_pos;
+      ctx->ctx.base2.octet |= bit << ctx->ctx.base2.bit_pos;
 
-      if (ctx->i == 0)
+      if (ctx->ctx.base2.bit_pos == 0)
         {
           *out++ = ctx->ctx.base2.octet;
           ctx->ctx.base2.octet = 0;
           ++*outlen;
-          ctx->i = 0;
         }
 
       ++in;
     }
 
   return true;
+}
+
+/* Map from GMP (up to base 62):
+   "0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuv";
+   to base 58:
+   "123456789A BCDEFGHJKLMNPQRSTUVWXYZabc defghijkmnopqrstuvwxyz";  */
+static signed char const gmp_to_base58[256] = {
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  '1','2','3','4','5','6','7','8','9','A',-1, -1, -1, -1, -1, -1,
+  -1, 'B','C','D','E','F','G','H','J','K','L','M','N','P','Q','R',
+  'S','T','U','V','W','X','Y','Z','a','b','c',-1, -1, -1, -1, -1,
+  -1, 'd','e','f','g','h','i','j','k','m','n','o','p','q','r','s',
+  't','u','v','w','x','y','z',-1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+};
+
+static signed char const base58_to_gmp[256] = {
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, '0','1','2','3','4','5','6','7','8',-1, -1, -1, -1, -1, -1,
+  -1, '9','A','B','C','D','E','F','G', -1,'H','I','J','K','L',-1,
+  'M','N','O','P','Q','R','S','T','U','V','W',-1, -1, -1, -1, -1,
+  -1, 'X','Y','Z','a','b','c','d','e','f','g','h',-1, 'i','j','k',
+  'l','m','n','o','p','q','r','s','t','u','v',-1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+};
+
+static bool
+isubase58 (unsigned char ch)
+{
+  return ch < sizeof base58_to_gmp && 0 <= base58_to_gmp[ch];
+}
+
+
+ATTRIBUTE_PURE
+static idx_t
+base58_length (idx_t len)
+{
+  /* Base58 output length is approximately log(256)/log(58),
+     which is approximately len * 138 / 100,
+     which is at most ((len + 100 - 1) / 100) * 138
+     +1 to ensure we've enough place for NUL  */
+  idx_t base58_len = ((len + 99) / 100) * 138 + 1;
+  affirm (0 < base58_len);
+  return base58_len;
+}
+
+
+static void
+base58_encode_ctx_init (struct base_encode_context *ctx)
+{
+  ctx->ctx.base58.buf = NULL;
+  ctx->ctx.base58.size = 0;
+  ctx->ctx.base58.capacity = 0;
+}
+
+
+static bool
+base58_encode_ctx (struct base_encode_context *ctx,
+                   char const *restrict in, idx_t inlen,
+                   MAYBE_UNUSED char *restrict out, idx_t *outlen)
+{
+  *outlen = 0;   /* Only accumulate input in this function.  */
+
+  if (inlen == 0)
+    return true;
+
+  idx_t free_space = ctx->ctx.base58.capacity - ctx->ctx.base58.size;
+  if (free_space < inlen)
+    {
+      ctx->ctx.base58.buf = xpalloc (ctx->ctx.base58.buf,
+                                     &ctx->ctx.base58.capacity,
+                                     inlen - free_space,
+                                     -1, sizeof *ctx->ctx.base58.buf);
+    }
+
+  memcpy (ctx->ctx.base58.buf + ctx->ctx.base58.size, in, inlen);
+  ctx->ctx.base58.size += inlen;
+
+  return true;
+}
+
+static void
+base58_encode (char const *data, size_t data_len,
+               char *out, idx_t *outlen)
+{
+  affirm (base_length (data_len) <= *outlen);
+
+  size_t zeros = 0;
+  while (zeros < data_len && data[zeros] == 0)
+    zeros++;
+
+  memset (out, '1', zeros);
+  char *p = out + zeros;
+
+  /* Use GMP to convert from base 256 to base 58.  */
+  mpz_t num;
+  mpz_init (num);
+  if (data_len - zeros)
+    {
+      mpz_import (num, data_len - zeros, 1, 1, 0, 0, data + zeros);
+      for (p = mpz_get_str (p, 58, num); *p; p++)
+        *p = gmp_to_base58[to_uchar (*p)];
+    }
+  mpz_clear (num);
+
+  *outlen = p - out;
+}
+
+
+static bool
+base58_encode_ctx_finalize (struct base_encode_context *ctx,
+                            char *restrict *out, idx_t *outlen)
+{
+  /* Ensure output buffer is large enough.  */
+  idx_t max_outlen = base_length (ctx->ctx.base58.size);
+  if (max_outlen > *outlen)
+    {
+      *out = xrealloc (*out, max_outlen);
+      *outlen = max_outlen;
+    }
+
+  base58_encode ((char *)ctx->ctx.base58.buf, ctx->ctx.base58.size,
+                 *out, outlen);
+
+  free (ctx->ctx.base58.buf);
+  ctx->ctx.base58.buf = NULL;
+  ctx->ctx.base58.size = 0;
+  ctx->ctx.base58.capacity = 0;
+
+  return true;
+}
+
+
+static void
+base58_decode_ctx_init (struct base_decode_context *ctx)
+{
+  ctx->ctx.base58.size = 0;
+  ctx->ctx.base58.capacity = 0;
+  ctx->ctx.base58.buf = NULL;
+}
+
+static bool
+base58_decode_ctx (struct base_decode_context *ctx,
+                   char const *restrict in, idx_t inlen,
+                   MAYBE_UNUSED char *restrict out, idx_t *outlen)
+{
+  bool ignore_lines = true;  /* for now, always ignore them */
+
+  *outlen = 0;   /* Only accumulate input in this function.  */
+
+  if (inlen == 0)
+    return true;
+
+  idx_t free_space = ctx->ctx.base58.capacity - ctx->ctx.base58.size;
+  free_space -= 1;  /* Ensure we leave space for NUL (for mpz_set_str).  */
+  if (free_space < inlen)
+    {
+      ctx->ctx.base58.buf = xpalloc (ctx->ctx.base58.buf,
+                                     &ctx->ctx.base58.capacity,
+                                     inlen - free_space,
+                                     -1, sizeof *ctx->ctx.base58.buf);
+    }
+
+  /* Accumulate all valid input characters in our buffer.
+     Note we don't rely on mpz_set_str() for validation
+     as that allows (skips) all whitespace.  */
+  for (idx_t i = 0; i < inlen; i++)
+    {
+      unsigned char c = in[i];
+
+      if (ignore_lines && c == '\n')
+        continue;
+
+      if (!isubase58 (c))
+        return false;
+
+      ctx->ctx.base58.buf[ctx->ctx.base58.size++] = base58_to_gmp[to_uchar (c)];
+    }
+
+  return true;
+}
+
+
+static bool
+base58_decode (char const *data, size_t data_len,
+               char *restrict out, idx_t *outlen)
+{
+  affirm (data_len <= *outlen);
+
+  size_t ones = 0;
+  while (ones < data_len && data[ones] == base58_to_gmp['1'])
+    ones++;
+
+  memset (out, 0, ones);
+
+  /* Use GMP to convert from base 58 to base 256.  */
+  mpz_t num;
+  mpz_init (num);
+
+  if ((data_len - ones) && mpz_set_str (num, data + ones, 58) != 0)
+    {
+      mpz_clear (num);
+      *outlen = 0;
+      return false;
+    }
+
+  size_t exported_size = 0;
+  if (data_len - ones)
+    {
+      size_t binary_size = (mpz_sizeinbase (num, 2) + 7) / 8;
+      affirm (*outlen - ones >= binary_size);
+      mpz_export (out + ones, &exported_size, 1, 1, 0, 0, num);
+    }
+
+  mpz_clear (num);
+  *outlen = ones + exported_size;
+  return true;
+}
+
+
+static bool
+base58_decode_ctx_finalize (struct base_decode_context *ctx,
+                            char *restrict *out, idx_t *outlen)
+{
+  /* Ensure output buffer is large enough.
+     Worst case is input is all '1's.  */
+  idx_t max_outlen = ctx->ctx.base58.size;
+  if (max_outlen > *outlen)
+    {
+      *out = xrealloc (*out, max_outlen);
+      *outlen = max_outlen;
+    }
+
+  /* Ensure input buffer is NUL terminated (for mpz_get_str).  */
+  if (ctx->ctx.base58.size)
+    ctx->ctx.base58.buf[ctx->ctx.base58.size] = '\0';
+
+  bool ret = base58_decode ((char *)ctx->ctx.base58.buf, ctx->ctx.base58.size,
+                            *out, outlen);
+
+  free (ctx->ctx.base58.buf);
+  ctx->ctx.base58.buf = NULL;
+  ctx->ctx.base58.size = 0;
+  ctx->ctx.base58.capacity = 0;
+
+  return ret;
 }
 
 #endif /* BASE_TYPE == 42, i.e., "basenc"*/
@@ -1076,7 +1479,7 @@ finish_and_exit (FILE *in, char const *infile)
 {
   if (fclose (in) != 0)
     {
-      if (STREQ (infile, "-"))
+      if (streq (infile, "-"))
         error (EXIT_FAILURE, errno, _("closing standard input"));
       else
         error (EXIT_FAILURE, errno, "%s", quotef (infile));
@@ -1095,6 +1498,14 @@ do_encode (FILE *in, char const *infile, FILE *out, idx_t wrap_column)
   inbuf = xmalloc (ENC_BLOCKSIZE);
   outbuf = xmalloc (BASE_LENGTH (ENC_BLOCKSIZE));
 
+#if BASE_TYPE == 42
+  /* Initialize encoding context if needed (for base58) */
+  struct base_encode_context encode_ctx;
+  bool use_ctx = (base_encode_ctx_init != NULL);
+  if (use_ctx)
+    base_encode_ctx_init (&encode_ctx);
+#endif
+
   do
     {
       idx_t n;
@@ -1109,15 +1520,37 @@ do_encode (FILE *in, char const *infile, FILE *out, idx_t wrap_column)
 
       if (sum > 0)
         {
-          /* Process input one block at a time.  Note that ENC_BLOCKSIZE
-             is sized so that no pad chars will appear in output. */
-          base_encode (inbuf, sum, outbuf, BASE_LENGTH (sum));
+#if BASE_TYPE == 42
+          if (use_ctx)
+            {
+              idx_t outlen = 0;
+              base_encode_ctx (&encode_ctx, inbuf, sum, outbuf, &outlen);
 
-          wrap_write (outbuf, BASE_LENGTH (sum), wrap_column,
-                      &current_column, out);
+              wrap_write (outbuf, outlen, wrap_column, &current_column, out);
+            }
+          else
+#endif
+            {
+              /* Process input one block at a time.  Note that ENC_BLOCKSIZE
+                 is sized so that no pad chars will appear in output. */
+              base_encode (inbuf, sum, outbuf, BASE_LENGTH (sum));
+
+              wrap_write (outbuf, BASE_LENGTH (sum), wrap_column,
+                          &current_column, out);
+            }
         }
     }
   while (!feof (in) && !ferror (in) && sum == ENC_BLOCKSIZE);
+
+#if BASE_TYPE == 42
+  if (use_ctx && base_encode_ctx_finalize)
+    {
+      idx_t outlen = BASE_LENGTH (ENC_BLOCKSIZE);
+      base_encode_ctx_finalize (&encode_ctx, &outbuf, &outlen);
+
+      wrap_write (outbuf, outlen, wrap_column, &current_column, out);
+    }
+#endif
 
   /* When wrapping, terminate last line. */
   if (wrap_column && current_column > 0 && fputc ('\n', out) == EOF)
@@ -1136,12 +1569,11 @@ do_decode (FILE *in, char const *infile, FILE *out, bool ignore_garbage)
   idx_t sum;
   struct base_decode_context ctx;
 
-  char padbuf[8] _GL_ATTRIBUTE_NONSTRING = "========";
   inbuf = xmalloc (BASE_LENGTH (DEC_BLOCKSIZE));
   outbuf = xmalloc (DEC_BLOCKSIZE);
 
 #if BASE_TYPE == 42
-  ctx.inbuf = nullptr;
+  ctx.inbuf = NULL;
 #endif
   base_decode_ctx_init (&ctx);
 
@@ -1159,7 +1591,8 @@ do_decode (FILE *in, char const *infile, FILE *out, bool ignore_garbage)
             {
               for (idx_t i = 0; n > 0 && i < n;)
                 {
-                  if (isubase (inbuf[sum + i]) || inbuf[sum + i] == '=')
+                  if (isubase (inbuf[sum + i])
+                      || (REQUIRED_PADDING (1) && inbuf[sum + i] == '='))
                     i++;
                   else
                     memmove (inbuf + sum + i, inbuf + sum + i + 1, --n - i);
@@ -1173,37 +1606,23 @@ do_decode (FILE *in, char const *infile, FILE *out, bool ignore_garbage)
         }
       while (sum < BASE_LENGTH (DEC_BLOCKSIZE) && !feof (in));
 
-      /* The following "loop" is usually iterated just once.
-         However, when it processes the final input buffer, we want
-         to iterate it one additional time, but with an indicator
-         telling it to flush what is in CTX.  */
-      for (int k = 0; k < 1 + !!feof (in); k++)
+      while (sum || feof (in))
         {
-          if (k == 1)
-            {
-              if (ctx.i == 0)
-                break;
-
-              /* auto pad input (at eof).  */
-              idx_t auto_padding = REQUIRED_PADDING (ctx.i);
-              if (auto_padding && (sum == 0 || inbuf[sum - 1] != '='))
-                {
-                  affirm (auto_padding <= sizeof (padbuf));
-                  IF_LINT (free (inbuf));
-                  sum = auto_padding;
-                  inbuf = padbuf;
-                }
-              else
-                sum = 0;  /* process ctx buffer only */
-            }
           idx_t n = DEC_BLOCKSIZE;
-          ok = base_decode_ctx (&ctx, inbuf, sum, outbuf, &n);
+          if (sum)
+            ok = base_decode_ctx (&ctx, inbuf, sum, outbuf, &n);
+          else
+            ok = base_decode_ctx_finalize (&ctx, &outbuf, &n);
 
           if (fwrite (outbuf, 1, n, out) < n)
             write_error ();
 
-          if (!ok)
+          if (! ok)
             error (EXIT_FAILURE, 0, _("invalid input"));
+
+          if (sum == 0)
+            break;
+          sum = 0;
         }
     }
   while (!feof (in));
@@ -1237,7 +1656,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((opt = getopt_long (argc, argv, "diw:", long_options, nullptr)) != -1)
+  while ((opt = getopt_long (argc, argv, "diw:", long_options, NULL)) != -1)
     switch (opt)
       {
       case 'd':
@@ -1247,7 +1666,7 @@ main (int argc, char **argv)
       case 'w':
         {
           intmax_t w;
-          strtol_error s_err = xstrtoimax (optarg, nullptr, 10, &w, "");
+          strtol_error s_err = xstrtoimax (optarg, NULL, 10, &w, "");
           if (LONGINT_OVERFLOW < s_err || w < 0)
             error (EXIT_FAILURE, 0, "%s: %s",
                    _("invalid wrap size"), quote (optarg));
@@ -1268,6 +1687,7 @@ main (int argc, char **argv)
       case BASE2MSBF_OPTION:
       case BASE2LSBF_OPTION:
       case Z85_OPTION:
+      case BASE58_OPTION:
         base_type = opt;
         break;
 #endif
@@ -1282,11 +1702,18 @@ main (int argc, char **argv)
       }
 
 #if BASE_TYPE == 42
+  required_padding = no_required_padding;
+  has_padding = no_padding;
+  get_pending_length = no_pending_length;
+  base_decode_ctx_finalize = decode_ctx_finalize;
+
   switch (base_type)
     {
     case BASE64_OPTION:
       base_length = base64_length_wrapper;
       required_padding = base64_required_padding;
+      has_padding = base64_ctx_has_padding;
+      get_pending_length = base64_ctx_get_pending_length;
       isubase = isubase64;
       base_encode = base64_encode;
       base_decode_ctx_init = base64_decode_ctx_init_wrapper;
@@ -1296,6 +1723,8 @@ main (int argc, char **argv)
     case BASE64URL_OPTION:
       base_length = base64_length_wrapper;
       required_padding = base64_required_padding;
+      has_padding = base64_ctx_has_padding;
+      get_pending_length = base64_ctx_get_pending_length;
       isubase = isubase64url;
       base_encode = base64url_encode;
       base_decode_ctx_init = base64url_decode_ctx_init_wrapper;
@@ -1305,6 +1734,8 @@ main (int argc, char **argv)
     case BASE32_OPTION:
       base_length = base32_length_wrapper;
       required_padding = base32_required_padding;
+      has_padding = base32_ctx_has_padding;
+      get_pending_length = base32_ctx_get_pending_length;
       isubase = isubase32;
       base_encode = base32_encode;
       base_decode_ctx_init = base32_decode_ctx_init_wrapper;
@@ -1314,6 +1745,8 @@ main (int argc, char **argv)
     case BASE32HEX_OPTION:
       base_length = base32_length_wrapper;
       required_padding = base32_required_padding;
+      has_padding = base32_ctx_has_padding;
+      get_pending_length = base32_ctx_get_pending_length;
       isubase = isubase32hex;
       base_encode = base32hex_encode;
       base_decode_ctx_init = base32hex_decode_ctx_init_wrapper;
@@ -1322,7 +1755,7 @@ main (int argc, char **argv)
 
     case BASE16_OPTION:
       base_length = base16_length;
-      required_padding = no_required_padding;
+      get_pending_length = base16_ctx_get_pending_length;
       isubase = isubase16;
       base_encode = base16_encode;
       base_decode_ctx_init = base16_decode_ctx_init;
@@ -1331,7 +1764,7 @@ main (int argc, char **argv)
 
     case BASE2MSBF_OPTION:
       base_length = base2_length;
-      required_padding = no_required_padding;
+      get_pending_length = base2_ctx_get_pending_length;
       isubase = isubase2;
       base_encode = base2msbf_encode;
       base_decode_ctx_init = base2_decode_ctx_init;
@@ -1340,7 +1773,7 @@ main (int argc, char **argv)
 
     case BASE2LSBF_OPTION:
       base_length = base2_length;
-      required_padding = no_required_padding;
+      get_pending_length = base2_ctx_get_pending_length;
       isubase = isubase2;
       base_encode = base2lsbf_encode;
       base_decode_ctx_init = base2_decode_ctx_init;
@@ -1349,11 +1782,22 @@ main (int argc, char **argv)
 
     case Z85_OPTION:
       base_length = z85_length;
-      required_padding = no_required_padding;
+      get_pending_length = z85_ctx_get_pending_length;
       isubase = isuz85;
       base_encode = z85_encode;
       base_decode_ctx_init = z85_decode_ctx_init;
       base_decode_ctx = z85_decode_ctx;
+      break;
+
+    case BASE58_OPTION:
+      base_length = base58_length;
+      isubase = isubase58;
+      base_encode_ctx_init = base58_encode_ctx_init;
+      base_encode_ctx = base58_encode_ctx;
+      base_encode_ctx_finalize = base58_encode_ctx_finalize;
+      base_decode_ctx_init = base58_decode_ctx_init;
+      base_decode_ctx = base58_decode_ctx;
+      base_decode_ctx_finalize = base58_decode_ctx_finalize;
       break;
 
     default:
@@ -1373,7 +1817,7 @@ main (int argc, char **argv)
   else
     infile = "-";
 
-  if (STREQ (infile, "-"))
+  if (streq (infile, "-"))
     {
       xset_binary_mode (STDIN_FILENO, O_BINARY);
       input_fh = stdin;
@@ -1381,7 +1825,7 @@ main (int argc, char **argv)
   else
     {
       input_fh = fopen (infile, "rb");
-      if (input_fh == nullptr)
+      if (input_fh == NULL)
         error (EXIT_FAILURE, errno, "%s", quotef (infile));
     }
 

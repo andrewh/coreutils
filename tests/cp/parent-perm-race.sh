@@ -1,7 +1,7 @@
 #!/bin/sh
 # Make sure cp -pR --parents isn't too generous with parent permissions.
 
-# Copyright (C) 2006-2025 Free Software Foundation, Inc.
+# Copyright (C) 2006-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ chmod g+s d 2>/dev/null # The cp test is valid either way.
 
 # Terminate any background cp process.
 pid=
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 for attr in mode ownership
 do

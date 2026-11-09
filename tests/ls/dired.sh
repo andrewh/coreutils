@@ -1,7 +1,7 @@
 #!/bin/sh
 # make sure --dired option works
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -75,6 +75,19 @@ while test "$#" -gt 0; do
   shift; shift
   index=$(($index + 1))
 done
+
+# Ensure literal quoting preserves newlines for dired consumers.
+newline='n
+l'
+mkdir newline-dir || framework_failure_
+touch "newline-dir/$newline" || framework_failure_
+ls -l --dired --quoting-style=literal newline-dir > out || fail=1
+set -- $(sed -n 's|^//DIRED// ||p' out)
+test "$#" -eq 2 || framework_failure_
+dd bs=1 skip="$1" count="$(($2 - $1))" < out > actual 2>/dev/null \
+  || framework_failure_
+printf %s "$newline" > exp || framework_failure_
+compare exp actual || fail=1
 
 
 Exit $fail

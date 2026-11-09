@@ -1,7 +1,7 @@
 #!/bin/sh
 # make sure 'sum -s' works for input whose sum of bytes is larger than 2^32
 
-# Copyright (C) 2001-2025 Free Software Foundation, Inc.
+# Copyright (C) 2001-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,7 +30,8 @@ require_perl_
 # FYI, 16843009 is floor (2^32 / 255).
 
 # aka: perl -e 'print chr(255) x 16843009'
-$PERL -e '$s = chr(255) x 65537; foreach (1..257) {print $s}' \
+$PERL -e 'binmode STDOUT;
+$s = chr(255) x 65537; foreach (1..257) {print $s}' \
   | sum -s > out || fail=1
 cat > exp <<\EOF
 65535 32897
@@ -40,7 +41,8 @@ compare exp out || fail=1
 rm -f out exp
 
 # aka: perl -e 'print chr(255) x 16843010'
-$PERL -e '$s = chr(255) x 65537; foreach (1..257) {print $s}; print chr(255)' \
+$PERL -e 'binmode STDOUT;
+$s = chr(255) x 65537; foreach (1..257) {print $s}; print chr(255)' \
   | sum -s > out || fail=1
 cat > exp <<\EOF
 254 32897

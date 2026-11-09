@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test SELinux-related options.
 
-# Copyright (C) 2007-2025 Free Software Foundation, Inc.
+# Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -61,5 +61,7 @@ mv d f p s2 || fail=1
 for i in d f p; do
   c=$(stat --printf %C s2/$i); test x$c = x$ctx || fail=1
 done
+
+timeout 10 mv -Z s2/p s1 || fail=1
 
 Exit $fail

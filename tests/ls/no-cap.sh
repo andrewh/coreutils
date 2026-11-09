@@ -1,7 +1,7 @@
 #!/bin/sh
 # ensure that an empty "ca=" attribute disables ls's capability-checking
 
-# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+# Copyright (C) 2008-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,11 +27,11 @@ setcap 'cap_net_bind_service=ep' file ||
   skip_ "setcap doesn't work"
 
 LS_COLORS=ca=1; export LS_COLORS
-strace -e capget ls --color=always > /dev/null 2> out || fail=1
+strace -e trace=capget ls --color=always > /dev/null 2> out || fail=1
 $EGREP 'capget\(' out || skip_ "your ls doesn't call capget"
 
 LS_COLORS=ca=:; export LS_COLORS
-strace -e capget ls --color=always > /dev/null 2> out || fail=1
+strace -e trace=capget ls --color=always > /dev/null 2> out || fail=1
 $EGREP 'capget\(' out && fail=1
 
 Exit $fail

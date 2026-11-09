@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise du's --apparent-size option.
 
-# Copyright 2023-2025 Free Software Foundation, Inc.
+# Copyright 2023-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,10 +24,13 @@ for f in $(seq 100); do
   echo foo >d/$f || framework_failure_
 done
 
-du -b d/* >separate || fail=1
-du -b d   >together || fail=1
-separate_sum=$($AWK '{sum+=$1}END{print sum}' separate) || framework_failure_
-together_sum=$($AWK '{sum+=$1}END{print sum}' together) || framework_failure_
-test $separate_sum -eq $together_sum || fail=1
+# Check that the following options are equivalent.
+for opts in '-b' '-A -B 1' '--apparent-size --block-size 1'; do
+  du $opts d/* >separate || fail=1
+  du $opts d   >together || fail=1
+  separate_sum=$($AWK '{sum+=$1}END{print sum}' separate) || framework_failure_
+  together_sum=$($AWK '{sum+=$1}END{print sum}' together) || framework_failure_
+  test $separate_sum -eq $together_sum || fail=1
+done
 
 Exit $fail

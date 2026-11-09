@@ -22,12 +22,15 @@ a copy of the latest with this command:
     git clone https://git.savannah.gnu.org/git/coreutils.git
     cd coreutils
 
-That downloads the entire repository, including revision control history
-dating back to 1991.  The repository (the part you download, and which
-resides in coreutils/.git) currently weighs in at about 30MB.  So you
-don't want to download it more often than necessary.  Once downloaded,
-you can get incremental updates by running one of these commands from
-inside your new coreutils/ directory:
+You can also interact with the project through the github mirror at:
+
+    https://github.com/coreutils/coreutils
+
+The entire repository, including revision control history
+dating back to 1991, currently weighs in at about 50MB.
+So you don't want to download it more often than necessary.
+Once downloaded, you can get incremental updates by running one of these
+commands from inside your new coreutils/ directory:
 
 If you have made *no* changes:
     git pull
@@ -471,9 +474,9 @@ Copyright assignment
 If your change is significant (i.e., if it adds more than ~10 lines),
 then you'll have to have a copyright assignment on file with the FSF.
 Since that involves first an email exchange between you and the FSF,
-and then the exchange (FSF to you, then back) of an actual sheet of paper
-with your signature on it, and finally, some administrative processing
-in Boston, the process can take a few weeks.
+and then the exchange (FSF to you, then back) of a form to sign
+(either posted paper or electronically), and finally, some
+administrative processing in Boston, the process can take a few weeks.
 
 The forms to choose from are in gnulib's doc/Copyright/ directory.
 If you want to assign a single change, you should use the file,
@@ -616,7 +619,7 @@ and root only tests, is to follow these steps (requires lcov to be installed):
   xdg-open doc/coverage/index.html
 
 ========================================================================
-Copyright (C) 2009-2025 Free Software Foundation, Inc.
+Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or

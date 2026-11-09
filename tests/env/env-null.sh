@@ -1,7 +1,7 @@
 #!/bin/sh
 # Verify behavior of env -0 and printenv -0.
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,16 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ env printenv
+
+# We may depend on a library found in LD_LIBRARY_PATH, or an equivalent
+# environment variable.  Skip the test if it is set since unsetting it may
+# prevent us from running commands.
+for var in LD_LIBRARY_PATH LD_32_LIBRARY_PATH DYLD_LIBRARY_PATH LIBPATH; do
+  eval val=\$$var
+  if test -n "$val"; then
+    skip_ "programs may depend on $var being set"
+  fi
+done
 
 # POSIX is clear that environ may, but need not be, sorted.
 # Environment variable values may contain newlines, which cannot be

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Validate cksum --check dynamic operation
 
-# Copyright (C) 2021-2025 Free Software Foundation, Inc.
+# Copyright (C) 2021-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,16 +18,90 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ cksum shuf
+uses_strace_
 
 shuf -i 1-10 > input || framework_failure_
 
-for args in '-a sha384' '-a blake2b' '-a blake2b -l 384' '-a sm3'; do
+# Detect GNU and BSD reversed formats independently for each checksum file.
+cksum -a sha256 --untagged input > standard.sum || framework_failure_
+sed 's/  input$/ input/' standard.sum > reversed.sum || framework_failure_
+cksum -a sha256 --strict --check standard.sum reversed.sum || fail=1
+cksum -a sha256 --strict --check reversed.sum standard.sum || fail=1
+
+for args in '-a sha2 -l 384' '-a blake2b' '-a blake2b -l 384' '-a sm3'; do
   cksum $args 'input' >> CHECKSUMS || fail=1
 done
 cksum --strict --check CHECKSUMS || fail=1
 
+# We don't output but do support SHA2-### tagged format.
+# Also ensure we check both formats with and without -a specified.
+cksum -a sha2 -l 384 input > sha384-tag.sum || framework_failure_
+sed 's/^SHA/SHA2-/' sha384-tag.sum > sha2-tag.sum || framework_failure_
+for file in sha384-tag.sum sha2-tag.sum; do
+  for spec in '' '-a sha2'; do
+    cksum --check $spec $file || fail=1
+  done
+done
+
+# Ensure -a sha2 checks all lines in a file with mixed SHA2 lengths.
+# coreutils-9.9 to 9.12 only checked lines with the first tagged length.
+cksum -a sha2 -l 224 input > sha2-mixed.sum &&
+cksum -a sha2 -l 512 input >> sha2-mixed.sum &&
+cksum -a sha2 -l 256 --untagged input >> sha2-mixed.sum &&
+cksum -a sha2 -l 384 input >> sha2-mixed.sum || framework_failure_
+cksum -a sha2 --strict --check sha2-mixed.sum || fail=1
+# A mismatch in a line of a different length than the first must be detected
+cksum -a sha2 -l 224 input > sha2-mixed-bad.sum &&
+echo "SHA512 (input) = $(printf '%0128d' 0)" >> sha2-mixed-bad.sum \
+  || framework_failure_
+returns_ 1 cksum -a sha2 --check sha2-mixed-bad.sum > out 2>&1 || fail=1
+grep 'input: FAILED' out || fail=1
+
+# Ensure invalid length is handled appropriately
+# coreutils-9.8 had undefined behavior with the following:
+printf '%s\n' 'SHA2-128 (/dev/null) = 38b060a751ac96384cd9327eb1b1e36a' \
+  > sha2-bad-length.sum || framework_failure_
+returns_ 1 cksum --check sha2-bad-length.sum 2>err || fail=1
+echo 'cksum: sha2-bad-length.sum: no properly formatted checksum lines found' \
+  > experr || framework_failure_
+compare experr err || fail=1
+
+# Ensure a length is only accepted for length adjustable algorithms.
+# coreutils 9.0 - 9.12 inclusive only compared LENGTH bits of the digest,
+# and then ignored any following full length untagged checksums.
+for algo in md5 sha1 sha224 sha256 sha384 sha512 sm3; do
+  cksum -a $algo input | sed 's/ (/-8 (/; s/\( = ..\).*/\1/' > trunc.sum \
+    || framework_failure_
+  for spec in '' "-a $algo"; do
+    returns_ 1 cksum --check $spec trunc.sum 2>err || fail=1
+    echo 'cksum: trunc.sum: no properly formatted checksum lines found' \
+      > experr || framework_failure_
+    compare experr err || fail=1
+  done
+  cksum -a $algo --untagged input >> trunc.sum || framework_failure_
+  cksum --check -a $algo trunc.sum 2>err || fail=1
+  echo 'cksum: WARNING: 1 line is improperly formatted' \
+    > experr || framework_failure_
+  compare experr err || fail=1
+done
+
+# Ensure base64 in untagged format that matches tags is supported
+# From coreutils 9.2 - 9.8 inclusive this was not supported
+echo 'SHA1+++++++++++++++++++++++=  /dev/null' > tag-prefix.sum \
+  || framework_failure_
+returns_ 1 cksum --check -a sha1 tag-prefix.sum 2>err || fail=1
+echo 'cksum: WARNING: 1 computed checksum did NOT match' \
+  > experr || framework_failure_
+compare experr err || fail=1
+
 # Ensure leading whitespace and \ ignored
 sed 's/^/ \\/' CHECKSUMS | cksum --strict -c || fail=1
+
+# Ensure file names with " (=" supported.
+awkward_file='abc (f) = abc'
+touch "$awkward_file" || framework_failure_
+cksum -a sha1 "$awkward_file" > tag-awkward.sum || framework_failure_
+cksum --check tag-awkward.sum || fail=1
 
 # Check common signed checksums format works in non strict mode
 cat >> signed_CHECKSUMS <<\EOF
@@ -74,7 +148,7 @@ grep '1 line is improperly formatted' out || fail=1
 cksum --strict --check CHECKSUMS >out 2>&1 && fail=1
 grep '1 line is improperly formatted' out || fail=1
 echo "invalid line" >> CHECKSUMS
-# plurial checks
+# plurality checks
 cksum --strict --check CHECKSUMS >out 2>&1 && fail=1
 grep '2 lines are improperly formatted' out || fail=1
 
@@ -158,4 +232,50 @@ touch empty-1 empty-2 || framework_failure_
 cksum --check empty-1 empty-2 > out 2>&1 && fail=1
 grep 'empty-1: no properly formatted checksum lines found' out || fail=1
 grep 'empty-2: no properly formatted checksum lines found' out || fail=1
+
+
+# Disallow --tag --check, with appropriate error
+returns_ 1 cksum --tag --check /dev/null 2> err
+grep 'the --tag option is meaningless when verifying checksums' err || fail=1
+# Allow --untagged --check, to better support
+# an emulation wrapper for legacy *sum utils.
+cksum -a md5 /dev/null | cksum --untagged --check || fail=1
+
+# Ensure I/O errors handled appropriately
+if strace -o /dev/null -P _ -e /read,splice -e fault=all:error=EIO true; then
+  touch ok eio || framework_failure_
+  cksum -a md5 eio ok > check.md5 || fail=1
+  # Test one of the files being checked returns EIO
+  returns_ 1 strace -o /dev/null -P eio -e /read,splice -e fault=all:error=EIO \
+   cksum --check check.md5 2>err >out || fail=1
+
+  printf '%s\n' 'eio: FAILED open or read' 'ok: OK' >exp || framework_failure_
+  compare exp out || fail=1
+
+  # Generate the expected error using cat:
+  strace -o /dev/null -P eio -e /read,splice -e fault=all:error=EIO \
+    cat eio 2> exp.t
+  sed 's/cat/cksum/' < exp.t > exp && grep eio: exp && echo \
+   'cksum: WARNING: 1 listed file could not be read' >>exp || framework_failure_
+  compare exp err || fail=1
+fi
+
+# A tagged line with a valid algorithm but a digest of the wrong
+# (truncated) length must be flagged as improperly formatted, not
+# reported as a checksum mismatch (FAILED).
+touch ff1 ff2 ff3 || framework_failure_
+cksum -a sha256 ff1 ff2 ff3 > trunc.sum || fail=1
+# Truncate the digest of the last two lines by one hex character.
+sed '2,3 s/.$//' trunc.sum > trunc-bad.sum || framework_failure_
+cksum --check trunc-bad.sum > out 2> err || fail=1
+grep 'ff1: OK' out || fail=1
+grep 'FAILED' out && fail=1
+grep 'WARNING: 2 lines are improperly formatted' err || fail=1
+# With --warn the offending lines are reported individually.
+cksum --warn --check trunc-bad.sum > out 2> err || fail=1
+grep 'trunc-bad.sum: 2: improperly formatted SHA256 checksum line' err || fail=1
+grep 'trunc-bad.sum: 3: improperly formatted SHA256 checksum line' err || fail=1
+# With --strict a malformed line makes the exit status non-zero.
+returns_ 1 cksum --strict --check trunc-bad.sum > out 2> err || fail=1
+
 Exit $fail

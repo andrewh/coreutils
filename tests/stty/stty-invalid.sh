@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that stty diagnoses invalid inputs, rather than silently misbehaving.
 
-# Copyright (C) 2007-2025 Free Software Foundation, Inc.
+# Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ fi
 # We simulate unsupported numbers in a separate "LD_PRELOAD" test.
 WRAP_9600="$(expr $ULONG_OFLOW - 9600)"
 for speed in 9599.. 9600.. 9600.5. 9600.50. 9600.0. ++9600 \
-             -$WRAP_9600 --$WRAP_9600 0x2580 96E2 9600,0 '9600.0 '; do
+             -$WRAP_9600 --$WRAP_9600 0x2580 96E2 9600,0 '9600.0 ' '' ' '; do
   returns_ 1 stty ispeed "$speed" || fail=1
 done
 

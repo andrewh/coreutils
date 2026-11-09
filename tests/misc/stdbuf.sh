@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise stdbuf functionality
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,12 +23,7 @@ getlimits_
 
 # stdbuf fails when the absolute top build dir name contains e.g.,
 # space, TAB, NL
-lf='
-'
-case $abs_top_builddir in
-  *[\\\"\#\$\&\'\`$lf\ \	]*)
-    skip_ "unsafe absolute build directory name: $abs_top_builddir";;
-esac
+require_safe_builddir_
 
 # Use a fifo rather than a pipe in the tests below
 # so that the producer (uniq) will wait until the
@@ -56,7 +51,7 @@ returns_ 126 env . && { returns_ 126 stdbuf -o1 . || fail=1; } # invalid command
 returns_ 127 stdbuf -o1 no_such || fail=1 # no such command
 
 # Terminate any background processes
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 # Ensure line buffering stdout takes effect
 stdbuf_linebuffer()

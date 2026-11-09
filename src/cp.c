@@ -1,5 +1,5 @@
 /* cp.c  -- file copying (main routines)
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ static bool remove_trailing_slashes;
 
 static char const *const sparse_type_string[] =
 {
-  "never", "auto", "always", nullptr
+  "never", "auto", "always", NULL
 };
 static enum Sparse_type const sparse_type[] =
 {
@@ -94,7 +94,7 @@ ARGMATCH_VERIFY (sparse_type_string, sparse_type);
 
 static char const *const reflink_type_string[] =
 {
-  "auto", "always", "never", nullptr
+  "auto", "always", "never", NULL
 };
 static enum Reflink_type const reflink_type[] =
 {
@@ -104,7 +104,7 @@ ARGMATCH_VERIFY (reflink_type_string, reflink_type);
 
 static char const *const update_type_string[] =
 {
-  "all", "none", "none-fail", "older", nullptr
+  "all", "none", "none-fail", "older", NULL
 };
 static enum Update_type const update_type[] =
 {
@@ -114,40 +114,40 @@ ARGMATCH_VERIFY (update_type_string, update_type);
 
 static struct option const long_opts[] =
 {
-  {"archive", no_argument, nullptr, 'a'},
-  {"attributes-only", no_argument, nullptr, ATTRIBUTES_ONLY_OPTION},
-  {"backup", optional_argument, nullptr, 'b'},
-  {"copy-contents", no_argument, nullptr, COPY_CONTENTS_OPTION},
-  {"debug", no_argument, nullptr, DEBUG_OPTION},
-  {"dereference", no_argument, nullptr, 'L'},
-  {"force", no_argument, nullptr, 'f'},
-  {"interactive", no_argument, nullptr, 'i'},
-  {"link", no_argument, nullptr, 'l'},
-  {"no-clobber", no_argument, nullptr, 'n'},   /* Deprecated.  */
-  {"no-dereference", no_argument, nullptr, 'P'},
-  {"no-preserve", required_argument, nullptr, NO_PRESERVE_ATTRIBUTES_OPTION},
-  {"no-target-directory", no_argument, nullptr, 'T'},
-  {"one-file-system", no_argument, nullptr, 'x'},
-  {"parents", no_argument, nullptr, PARENTS_OPTION},
-  {"path", no_argument, nullptr, PARENTS_OPTION},   /* Deprecated.  */
-  {"preserve", optional_argument, nullptr, PRESERVE_ATTRIBUTES_OPTION},
-  {"recursive", no_argument, nullptr, 'R'},
-  {"remove-destination", no_argument, nullptr, UNLINK_DEST_BEFORE_OPENING},
-  {"sparse", required_argument, nullptr, SPARSE_OPTION},
-  {"reflink", optional_argument, nullptr, REFLINK_OPTION},
-  {"strip-trailing-slashes", no_argument, nullptr,
+  {"archive", no_argument, NULL, 'a'},
+  {"attributes-only", no_argument, NULL, ATTRIBUTES_ONLY_OPTION},
+  {"backup", optional_argument, NULL, 'b'},
+  {"copy-contents", no_argument, NULL, COPY_CONTENTS_OPTION},
+  {"debug", no_argument, NULL, DEBUG_OPTION},
+  {"dereference", no_argument, NULL, 'L'},
+  {"force", no_argument, NULL, 'f'},
+  {"interactive", no_argument, NULL, 'i'},
+  {"link", no_argument, NULL, 'l'},
+  {"no-clobber", no_argument, NULL, 'n'},   /* Deprecated.  */
+  {"no-dereference", no_argument, NULL, 'P'},
+  {"no-preserve", required_argument, NULL, NO_PRESERVE_ATTRIBUTES_OPTION},
+  {"no-target-directory", no_argument, NULL, 'T'},
+  {"one-file-system", no_argument, NULL, 'x'},
+  {"parents", no_argument, NULL, PARENTS_OPTION},
+  {"path", no_argument, NULL, PARENTS_OPTION},   /* Deprecated.  */
+  {"preserve", optional_argument, NULL, PRESERVE_ATTRIBUTES_OPTION},
+  {"recursive", no_argument, NULL, 'R'},
+  {"remove-destination", no_argument, NULL, UNLINK_DEST_BEFORE_OPENING},
+  {"sparse", required_argument, NULL, SPARSE_OPTION},
+  {"reflink", optional_argument, NULL, REFLINK_OPTION},
+  {"strip-trailing-slashes", no_argument, NULL,
    STRIP_TRAILING_SLASHES_OPTION},
-  {"suffix", required_argument, nullptr, 'S'},
-  {"symbolic-link", no_argument, nullptr, 's'},
-  {"target-directory", required_argument, nullptr, 't'},
-  {"update", optional_argument, nullptr, 'u'},
-  {"verbose", no_argument, nullptr, 'v'},
-  {"keep-directory-symlink", no_argument, nullptr,
+  {"suffix", required_argument, NULL, 'S'},
+  {"symbolic-link", no_argument, NULL, 's'},
+  {"target-directory", required_argument, NULL, 't'},
+  {"update", optional_argument, NULL, 'u'},
+  {"verbose", no_argument, NULL, 'v'},
+  {"keep-directory-symlink", no_argument, NULL,
     KEEP_DIRECTORY_SYMLINK_OPTION},
   {GETOPT_SELINUX_CONTEXT_OPTION_DECL},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -169,85 +169,148 @@ Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n\
 
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -a, --archive                same as -dR --preserve=all\n\
-      --attributes-only        don't copy the file data, just the attributes\n\
-      --backup[=CONTROL]       make a backup of each existing destination file\
-\n\
-  -b                           like --backup but does not accept an argument\n\
-      --copy-contents          copy contents of special files when recursive\n\
-  -d                           same as --no-dereference --preserve=links\n\
-"), stdout);
-      fputs (_("\
-      --debug                  explain how a file is copied.  Implies -v\n\
-"), stdout);
-      fputs (_("\
-  -f, --force                  if an existing destination file cannot be\n\
-                                 opened, remove it and try again (this option\n\
-                                 is ignored when the -n option is also used)\n\
-  -i, --interactive            prompt before overwrite (overrides a previous -n\
-\n\
-                                  option)\n\
-  -H                           follow command-line symbolic links in SOURCE\n\
-"), stdout);
-      fputs (_("\
-  -l, --link                   hard link files instead of copying\n\
-  -L, --dereference            always follow symbolic links in SOURCE\n\
-"), stdout);
-      fputs (_("\
-  -n, --no-clobber             (deprecated) silently skip existing files.\n\
-                                 See also --update\n\
-"), stdout);
-      fputs (_("\
-  -P, --no-dereference         never follow symbolic links in SOURCE\n\
-"), stdout);
-      fputs (_("\
-  -p                           same as --preserve=mode,ownership,timestamps\n\
-      --preserve[=ATTR_LIST]   preserve the specified attributes\n\
-"), stdout);
-      fputs (_("\
-      --no-preserve=ATTR_LIST  don't preserve the specified attributes\n\
-      --parents                use full source file name under DIRECTORY\n\
-"), stdout);
-      fputs (_("\
-  -R, -r, --recursive          copy directories recursively\n\
-      --reflink[=WHEN]         control clone/CoW copies. See below\n\
-      --remove-destination     remove each existing destination file before\n\
-                                 attempting to open it (contrast with --force)\
-\n"), stdout);
-      fputs (_("\
-      --sparse=WHEN            control creation of sparse files. See below\n\
-      --strip-trailing-slashes  remove any trailing slashes from each SOURCE\n\
-                                 argument\n\
-"), stdout);
-      fputs (_("\
-  -s, --symbolic-link          make symbolic links instead of copying\n\
-  -S, --suffix=SUFFIX          override the usual backup suffix\n\
-  -t, --target-directory=DIRECTORY  copy all SOURCE arguments into DIRECTORY\n\
-  -T, --no-target-directory    treat DEST as a normal file\n\
-"), stdout);
-      fputs (_("\
-      --update[=UPDATE]        control which existing files are updated;\n\
-                                 UPDATE={all,none,none-fail,older(default)}\n\
-  -u                           equivalent to --update[=older].  See below\n\
-"), stdout);
-      fputs (_("\
-  -v, --verbose                explain what is being done\n\
-"), stdout);
-      fputs (_("\
-      --keep-directory-symlink  follow existing symlinks to directories\n\
-"), stdout);
-      fputs (_("\
-  -x, --one-file-system        stay on this file system\n\
-"), stdout);
-      fputs (_("\
-  -Z                           set SELinux security context of destination\n\
-                                 file to default type\n\
-      --context[=CTX]          like -Z, or if CTX is specified then set the\n\
-                                 SELinux or SMACK security context to CTX\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -a, --archive\n\
+         same as -dR --preserve=all\n\
+"));
+      oputs (_("\
+      --attributes-only\n\
+         don't copy the file data, just the attributes\n\
+"));
+      oputs (_("\
+      --backup[=CONTROL]\n\
+         make a backup of each existing destination file\n\
+"));
+      oputs (_("\
+  -b\n\
+         like --backup but does not accept an argument\n\
+"));
+      oputs (_("\
+      --copy-contents\n\
+         copy contents of special files when recursive\n\
+"));
+      oputs (_("\
+  -d\n\
+         same as --no-dereference --preserve=links\n\
+"));
+      oputs (_("\
+      --debug\n\
+         explain how a file is copied.  Implies -v\n\
+"));
+      oputs (_("\
+  -f, --force\n\
+         if an existing destination file cannot be opened, remove it and try\n\
+         again (this option is ignored when the -n option is also used)\n\
+"));
+      oputs (_("\
+  -i, --interactive\n\
+         prompt before overwrite (overrides a previous -n option)\n\
+"));
+      oputs (_("\
+  -H\n\
+         follow command-line symbolic links in SOURCE\n\
+"));
+      oputs (_("\
+  -L, --dereference\n\
+         always follow symbolic links in SOURCE\n\
+"));
+      oputs (_("\
+  -P, --no-dereference\n\
+         never follow symbolic links in SOURCE\n\
+"));
+      oputs (_("\
+      --keep-directory-symlink\n\
+         follow existing symlinks to directories\n\
+"));
+      oputs (_("\
+  -l, --link\n\
+         hard link files instead of copying\n\
+"));
+      oputs (_("\
+  -n, --no-clobber\n\
+         (deprecated) silently skip existing files.  See also --update\n\
+"));
+      oputs (_("\
+  -p\n\
+         same as --preserve=mode,ownership,timestamps\n\
+"));
+      oputs (_("\
+      --preserve[=ATTR_LIST]\n\
+         preserve the specified attributes\n\
+"));
+      oputs (_("\
+      --no-preserve=ATTR_LIST\n\
+         don't preserve the specified attributes\n\
+"));
+      oputs (_("\
+      --parents\n\
+         use full source file name under DIRECTORY\n\
+"));
+      oputs (_("\
+  -R, -r, --recursive\n\
+         copy directories recursively\n\
+"));
+      oputs (_("\
+      --reflink[=WHEN]\n\
+         control clone/CoW copies. See below\n\
+"));
+      oputs (_("\
+      --remove-destination\n\
+         remove each existing destination file before attempting to open it\n\
+         (contrast with --force)\n\
+"));
+      oputs (_("\
+      --sparse=WHEN\n\
+         control creation of sparse files. See below\n\
+"));
+      oputs (_("\
+      --strip-trailing-slashes\n\
+         remove any trailing slashes from each SOURCE argument\n\
+"));
+      oputs (_("\
+  -s, --symbolic-link\n\
+         make symbolic links instead of copying\n\
+"));
+      oputs (_("\
+  -S, --suffix=SUFFIX\n\
+         override the usual backup suffix\n\
+"));
+      oputs (_("\
+  -t, --target-directory=DIRECTORY\n\
+         copy all SOURCE arguments into DIRECTORY\n\
+"));
+      oputs (_("\
+  -T, --no-target-directory\n\
+         treat DEST as a normal file\n\
+"));
+      oputs (_("\
+      --update[=UPDATE]\n\
+         control which existing files are updated;\n\
+         UPDATE={all,none,none-fail,older(default)}\n\
+"));
+      oputs (_("\
+  -u\n\
+         equivalent to --update[=older].  See below\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         explain what is being done\n\
+"));
+      oputs (_("\
+  -x, --one-file-system\n\
+         stay on this file system\n\
+"));
+      oputs (_("\
+  -Z\n\
+         set SELinux security context of destination file to default type\n\
+"));
+      oputs (_("\
+      --context[=CTX]\n\
+         like -Z, or if CTX is specified then set the\n\
+         SELinux or SMACK security context to CTX\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       fputs (_("\
 \n\
 ATTR_LIST is a comma-separated list of attributes. Attributes are 'mode' for\n\
@@ -309,7 +372,6 @@ re_protect (char const *const_dst_name, char const *dst_src_name,
             int dst_dirfd, char const *dst_relname,
             struct dir_attr *attr_list, const struct cp_options *x)
 {
-  struct dir_attr *p;
   char *dst_name;		/* A copy of CONST_DST_NAME we can change. */
 
   ASSIGN_STRDUPA (dst_name, const_dst_name);
@@ -321,7 +383,7 @@ re_protect (char const *const_dst_name, char const *dst_src_name,
   /* Likewise, but with any leading '/'s skipped.  */
   char const *relname = dst_name + (dst_relname - const_dst_name);
 
-  for (p = attr_list; p; p = p->next)
+  for (struct dir_attr *p = attr_list; p; p = p->next)
     {
       dst_name[p->slash_offset] = '\0';
 
@@ -331,10 +393,8 @@ re_protect (char const *const_dst_name, char const *dst_src_name,
 
       if (x->preserve_timestamps)
         {
-          struct timespec timespec[2];
-
-          timespec[0] = get_stat_atime (&p->st);
-          timespec[1] = get_stat_mtime (&p->st);
+          struct timespec timespec[2] = { get_stat_atime (&p->st),
+                                          get_stat_mtime (&p->st) };
 
           if (utimensat (dst_dirfd, relname, timespec, 0))
             {
@@ -408,24 +468,24 @@ make_dir_parents_private (char const *const_dir, size_t src_offset,
                           struct dir_attr **attr_list, bool *new_dst,
                           const struct cp_options *x)
 {
-  struct stat stats;
-  char *dir;		/* A copy of CONST_DIR we can change.  */
-  char *src;		/* Source name in DIR.  */
-  char *dst_dir;	/* Leading directory of DIR.  */
   idx_t dirlen = dir_len (const_dir);
 
-  *attr_list = nullptr;
+  *attr_list = NULL;
 
   /* Succeed immediately if the parent of CONST_DIR must already exist,
      as the target directory has already been checked.  */
   if (dirlen <= src_offset)
     return true;
 
+  /* A copy of CONST_DIR we can change.  */
+  char *dir;
   ASSIGN_STRDUPA (dir, const_dir);
 
-  src = dir + src_offset;
+  /* Source name in DIR.  */
+  char *src = dir + src_offset;
 
-  dst_dir = alloca (dirlen + 1);
+  /* Leading directory of DIR.  */
+  char *dst_dir = alloca (dirlen + 1);
   memcpy (dst_dir, dir, dirlen);
   dst_dir[dirlen] = '\0';
   char const *dst_reldir = dst_dir + src_offset;
@@ -434,13 +494,13 @@ make_dir_parents_private (char const *const_dir, size_t src_offset,
 
   /* XXX: If all dirs are present at the destination,
      no permissions or security contexts will be updated.  */
+  struct stat stats;
   if (fstatat (dst_dirfd, dst_reldir, &stats, 0) != 0)
     {
       /* A parent of CONST_DIR does not exist.
          Make all missing intermediate directories. */
-      char *slash;
+      char *slash = src;
 
-      slash = src;
       while (*slash == '/')
         slash++;
       dst_reldir = slash;
@@ -448,10 +508,9 @@ make_dir_parents_private (char const *const_dir, size_t src_offset,
       while ((slash = strchr (slash, '/')))
         {
           struct dir_attr *new;
-          bool missing_dir;
 
           *slash = '\0';
-          missing_dir = fstatat (dst_dirfd, dst_reldir, &stats, 0) != 0;
+          bool missing_dir = fstatat (dst_dirfd, dst_reldir, &stats, 0) != 0;
 
           if (missing_dir || x->preserve_ownership || x->preserve_mode
               || x->preserve_timestamps)
@@ -487,33 +546,30 @@ make_dir_parents_private (char const *const_dir, size_t src_offset,
 
           if (missing_dir)
             {
-              mode_t src_mode;
-              mode_t omitted_permissions;
-              mode_t mkdir_mode;
-
               /* This component does not exist.  We must set
                  *new_dst and new->st.st_mode inside this loop because,
                  for example, in the command 'cp --parents ../a/../b/c e_dir',
                  make_dir_parents_private creates only e_dir/../a if
                  ./b already exists. */
               *new_dst = true;
-              src_mode = new->st.st_mode;
+              mode_t src_mode = new->st.st_mode;
 
               /* If the ownership or special mode bits might change,
                  omit some permissions at first, so unauthorized users
                  cannot nip in before the file is ready.  */
-              omitted_permissions = (src_mode
-                                     & (x->preserve_ownership
-                                        ? S_IRWXG | S_IRWXO
-                                        : x->preserve_mode
-                                        ? S_IWGRP | S_IWOTH
-                                        : 0));
+              mode_t omitted_permissions = (src_mode
+                                            & (x->preserve_ownership
+                                               ? S_IRWXG | S_IRWXO
+                                               : x->preserve_mode
+                                               ? S_IWGRP | S_IWOTH
+                                               : 0));
 
               /* POSIX says mkdir's behavior is implementation-defined when
                  (src_mode & ~S_IRWXUGO) != 0.  However, common practice is
                  to ask mkdir to copy all the CHMOD_MODE_BITS, letting mkdir
                  decide what to do with S_ISUID | S_ISGID | S_ISVTX.  */
-              mkdir_mode = x->explicit_no_preserve_mode ? S_IRWXUGO : src_mode;
+              mode_t mkdir_mode = (x->explicit_no_preserve_mode
+                                   ? S_IRWXUGO : src_mode);
               mkdir_mode &= CHMOD_MODE_BITS & ~omitted_permissions;
               if (mkdirat (dst_dirfd, dst_reldir, mkdir_mode) != 0)
                 {
@@ -523,8 +579,9 @@ make_dir_parents_private (char const *const_dir, size_t src_offset,
                 }
               else
                 {
-                  if (verbose_fmt_string != nullptr)
-                    printf (verbose_fmt_string, src, dir);
+                  if (verbose_fmt_string != NULL)
+                    printf (verbose_fmt_string, quoteaf_n (0, src),
+                            quoteaf_n (1, dir));
                 }
 
               /* We need search and write permissions to the new directory
@@ -614,10 +671,6 @@ static bool
 do_copy (int n_files, char **file, char const *target_directory,
          bool no_target_directory, struct cp_options *x)
 {
-  struct stat sb;
-  bool new_dst = false;
-  bool ok = true;
-
   if (n_files <= !target_directory)
     {
       if (n_files <= 0)
@@ -628,8 +681,11 @@ do_copy (int n_files, char **file, char const *target_directory,
       usage (EXIT_FAILURE);
     }
 
+  struct stat sb;
   sb.st_mode = 0;
   int target_dirfd = AT_FDCWD;
+  bool new_dst = false;
+  bool ok = true;
   if (no_target_directory)
     {
       if (target_directory)
@@ -732,7 +788,7 @@ do_copy (int n_files, char **file, char const *target_directory,
               parent_exists =
                 (make_dir_parents_private
                  (dst_name, arg_in_concat - dst_name, target_dirfd,
-                  (x->verbose ? "%s -> %s\n" : nullptr),
+                  (x->verbose ? "%s -> %s\n" : NULL),
                   &attr_list, &new_dst, x));
             }
           else
@@ -742,7 +798,7 @@ do_copy (int n_files, char **file, char const *target_directory,
               ASSIGN_STRDUPA (arg_base, last_component (arg));
               strip_trailing_slashes (arg_base);
               /* For 'cp -R source/.. dest', don't copy into 'dest/..'. */
-              arg_base += STREQ (arg_base, "..");
+              arg_base += streq (arg_base, "..");
               dst_name = file_name_concat (target_directory, arg_base,
                                            &arg_in_concat);
             }
@@ -761,7 +817,7 @@ do_copy (int n_files, char **file, char const *target_directory,
 
               bool copy_into_self;
               ok &= copy (arg, dst_name, target_dirfd, dst_relname,
-                          new_dst, x, &copy_into_self, nullptr);
+                          new_dst, x, &copy_into_self, NULL);
 
               if (parents_option)
                 ok &= re_protect (dst_name, arg_in_concat, target_dirfd,
@@ -783,10 +839,6 @@ do_copy (int n_files, char **file, char const *target_directory,
     }
   else /* !target_directory */
     {
-      char const *source = file[0];
-      char const *dest = file[1];
-      bool unused;
-
       if (parents_option)
         {
           error (0, 0,
@@ -800,9 +852,11 @@ do_copy (int n_files, char **file, char const *target_directory,
          'cp --force --backup foo foo' to 'cp --force foo fooSUFFIX'
          where SUFFIX is determined by any version control options used.  */
 
+      char const *source = file[0];
+      char const *dest = file[1];
       if (x->unlink_dest_after_failed_open
           && x->backup_type != no_backups
-          && STREQ (source, dest)
+          && streq (source, dest)
           && !new_dst
           && (sb.st_mode != 0 || stat (dest, &sb) == 0) && S_ISREG (sb.st_mode))
         {
@@ -819,7 +873,8 @@ do_copy (int n_files, char **file, char const *target_directory,
           x = &x_tmp;
         }
 
-      ok = copy (source, dest, AT_FDCWD, dest, -new_dst, x, &unused, nullptr);
+      bool unused;
+      ok = copy (source, dest, AT_FDCWD, dest, -new_dst, x, &unused, NULL);
     }
 
   return ok;
@@ -847,7 +902,7 @@ cp_option_init (struct cp_options *x)
   x->explicit_no_preserve_mode = false;
   x->preserve_security_context = false; /* -a or --preserve=context.  */
   x->require_preserve_context = false;  /* --preserve=context.  */
-  x->set_security_context = nullptr;       /* -Z, set sys default context. */
+  x->set_security_context = NULL;       /* -Z, set sys default context. */
   x->preserve_xattr = false;
   x->reduce_diagnostics = false;
   x->require_preserve_xattr = false;
@@ -871,10 +926,10 @@ cp_option_init (struct cp_options *x)
      in general one cannot do that safely, give the current semantics of
      open's O_EXCL flag, (which POSIX doesn't even allow cp to use, btw).
      But POSIX requires it.  */
-  x->open_dangling_dest_symlink = getenv ("POSIXLY_CORRECT") != nullptr;
+  x->open_dangling_dest_symlink = getenv ("POSIXLY_CORRECT") != NULL;
 
-  x->dest_info = nullptr;
-  x->src_info = nullptr;
+  x->dest_info = NULL;
+  x->src_info = NULL;
 }
 
 /* Given a string, ARG, containing a comma-separated list of arguments
@@ -902,7 +957,7 @@ decode_preserve_arg (char const *arg, struct cp_options *x, bool on_off)
   static char const *const preserve_args[] =
     {
       "mode", "timestamps",
-      "ownership", "links", "context", "xattr", "all", nullptr
+      "ownership", "links", "context", "xattr", "all", NULL
     };
   ARGMATCH_VERIFY (preserve_args, preserve_vals);
 
@@ -974,16 +1029,14 @@ decode_preserve_arg (char const *arg, struct cp_options *x, bool on_off)
 int
 main (int argc, char **argv)
 {
-  int c;
-  bool ok;
   bool make_backups = false;
-  char const *backup_suffix = nullptr;
-  char *version_control_string = nullptr;
+  char const *backup_suffix = NULL;
+  char *version_control_string = NULL;
   struct cp_options x;
   bool copy_contents = false;
-  char *target_directory = nullptr;
+  char *target_directory = NULL;
   bool no_target_directory = false;
-  char const *scontext = nullptr;
+  char const *scontext = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -996,8 +1049,9 @@ main (int argc, char **argv)
   selinux_enabled = (0 < is_selinux_enabled ());
   cp_option_init (&x);
 
+  int c;
   while ((c = getopt_long (argc, argv, "abdfHilLnprst:uvxPRS:TZ",
-                           long_opts, nullptr))
+                           long_opts, NULL))
          != -1)
     {
       switch (c)
@@ -1008,7 +1062,7 @@ main (int argc, char **argv)
           break;
 
         case REFLINK_OPTION:
-          if (optarg == nullptr)
+          if (optarg == NULL)
             x.reflink_mode = REFLINK_ALWAYS;
           else
             x.reflink_mode = XARGMATCH ("--reflink", optarg,
@@ -1086,7 +1140,7 @@ main (int argc, char **argv)
           break;
 
         case PRESERVE_ATTRIBUTES_OPTION:
-          if (optarg == nullptr)
+          if (optarg == NULL)
             {
               /* Fall through to the case for 'p' below.  */
             }
@@ -1165,7 +1219,7 @@ main (int argc, char **argv)
               else
                 {
                   x.set_security_context = selabel_open (SELABEL_CTX_FILE,
-                                                         nullptr, 0);
+                                                         NULL, 0);
                   if (! x.set_security_context)
                     error (0, errno, _("warning: ignoring --context"));
                 }
@@ -1258,7 +1312,7 @@ main (int argc, char **argv)
   /* FIXME: This handles new files.  But what about existing files?
      I.e., if updating a tree, new files would have the specified context,
      but shouldn't existing files be updated for consistency like this?
-       if (scontext && !restorecon (nullptr, dst_path, 0))
+       if (scontext && !restorecon (NULL, dst_path, 0))
           error (...);
    */
   if (scontext && setfscreatecon (scontext) < 0)
@@ -1276,8 +1330,8 @@ main (int argc, char **argv)
 
   hash_init ();
 
-  ok = do_copy (argc - optind, argv + optind,
-                target_directory, no_target_directory, &x);
+  bool ok = do_copy (argc - optind, argv + optind,
+                     target_directory, no_target_directory, &x);
 
   main_exit (ok ? EXIT_SUCCESS : EXIT_FAILURE);
 }

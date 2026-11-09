@@ -1,5 +1,5 @@
 /* unexpand - convert blanks to tabs
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,11 +35,14 @@
 
 #include <config.h>
 
-#include <ctype.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <sys/types.h>
+
 #include "system.h"
+#include "ioblksize.h"
+#include "mbbuf.h"
+#include "mcel.h"
 #include "expand-common.h"
 
 /* The official name of this program (e.g., no 'g' prefix).  */
@@ -58,12 +61,12 @@ enum
 
 static struct option const longopts[] =
 {
-  {"tabs", required_argument, nullptr, 't'},
-  {"all", no_argument, nullptr, 'a'},
-  {"first-only", no_argument, nullptr, CONVERT_FIRST_ONLY_OPTION},
+  {"tabs", required_argument, NULL, 't'},
+  {"all", no_argument, NULL, 'a'},
+  {"first-only", no_argument, NULL, CONVERT_FIRST_ONLY_OPTION},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -84,14 +87,21 @@ Convert blanks in each FILE to tabs, writing to standard output.\n\
       emit_stdin_note ();
       emit_mandatory_arg_note ();
 
-      fputs (_("\
-  -a, --all        convert all blanks, instead of just initial blanks\n\
-      --first-only  convert only leading sequences of blanks (overrides -a)\n\
-  -t, --tabs=N     have tabs N characters apart instead of 8 (enables -a)\n\
-"), stdout);
-      emit_tab_list_info ();
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -a, --all\n\
+         convert all blanks, instead of just initial blanks\n\
+"));
+      oputs (_("\
+      --first-only\n\
+         convert only leading sequences of blanks (overrides -a)\n\
+"));
+      oputs (_("\
+  -t, --tabs=N\n\
+         have tabs N characters apart instead of 8 (enables -a)\n\
+"));
+      emit_tab_list_info (PROGRAM_NAME);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -104,7 +114,7 @@ static void
 unexpand (void)
 {
   /* Input stream.  */
-  FILE *fp = next_file (nullptr);
+  FILE *fp = next_file (NULL);
 
   /* The array of pending blanks.  In non-POSIX locales, blanks can
      include characters other than spaces, so the blanks must be
@@ -114,15 +124,19 @@ unexpand (void)
   if (!fp)
     return;
 
+  static char line_in[IO_BUFSIZE];
+  mbbuf_t mbbuf;
+  mbbuf_init (&mbbuf, line_in, sizeof line_in, fp);
+
   /* The worst case is a non-blank character, then one blank, then a
      tab stop, then MAX_COLUMN_WIDTH - 1 blanks, then a non-blank; so
      allocate MAX_COLUMN_WIDTH bytes to store the blanks.  */
-  pending_blank = ximalloc (max_column_width);
+  pending_blank = xinmalloc (max_column_width, MB_CUR_MAX);
 
   while (true)
     {
       /* Input character, or EOF.  */
-      int c;
+      mcel_t g;
 
       /* If true, perform translations.  */
       bool convert = true;
@@ -156,12 +170,13 @@ unexpand (void)
 
       do
         {
-          while ((c = getc (fp)) < 0 && (fp = next_file (fp)))
-            continue;
+          while ((g = mbbuf_get_char (&mbbuf)).ch == MBBUF_EOF
+                 && (fp = next_file (fp)))
+            mbbuf_init (&mbbuf, line_in, sizeof line_in, fp);
 
           if (convert)
             {
-              bool blank = !! isblank (c);
+              bool blank = c32issep (g.ch);
 
               if (blank)
                 {
@@ -175,7 +190,7 @@ unexpand (void)
 
                   if (convert)
                     {
-                      if (c == '\t')
+                      if (g.ch == '\t')
                         {
                           column = next_tab_column;
 
@@ -184,21 +199,27 @@ unexpand (void)
                         }
                       else
                         {
-                          column++;
+                          int width = c32width (g.ch);
+                          column += width < 0 ? 1 : width;
 
-                          if (! (prev_blank && column == next_tab_column))
+                          if (! (prev_blank && column >= next_tab_column))
                             {
                               /* It is not yet known whether the pending blanks
                                  will be replaced by tabs.  */
                               if (column == next_tab_column)
                                 one_blank_before_tab_stop = true;
-                              pending_blank[pending++] = c;
+                              memcpy (pending_blank + pending,
+                                      mbbuf_char_offset (&mbbuf, g), g.len);
+                              pending += g.len;
                               prev_blank = true;
                               continue;
                             }
 
                           /* Replace the pending blanks by a tab or two.  */
-                          pending_blank[0] = c = '\t';
+                          g.len = 0;
+                          if (putc ('\t', stdout) < 0)
+                            write_error ();
+                          pending_blank[0] = '\t';
                         }
 
                       /* Discard pending blanks, unless it was a single
@@ -206,7 +227,7 @@ unexpand (void)
                       pending = one_blank_before_tab_stop;
                     }
                 }
-              else if (c == '\b')
+              else if (g.ch == '\b')
                 {
                   /* Go back one column, and force recalculation of the
                      next tab stop.  */
@@ -216,8 +237,8 @@ unexpand (void)
                 }
               else
                 {
-                  column++;
-                  if (!column)
+                  int width = c32width (g.ch);
+                  if (ckd_add (&column, column, width < 0 ? 1 : width))
                     error (EXIT_FAILURE, 0, _("input line is too long"));
                 }
 
@@ -235,16 +256,17 @@ unexpand (void)
               convert &= convert_entire_line || blank;
             }
 
-          if (c < 0)
+          if (g.ch == MBBUF_EOF)
             {
               free (pending_blank);
               return;
             }
 
-          if (putchar (c) < 0)
+          fwrite (mbbuf_char_offset (&mbbuf, g), sizeof (char), g.len, stdout);
+          if (ferror (stdout))
             write_error ();
         }
-      while (c != '\n');
+      while (g.ch != '\n');
     }
 }
 
@@ -267,7 +289,7 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  while ((c = getopt_long (argc, argv, ",0123456789at:", longopts, nullptr))
+  while ((c = getopt_long (argc, argv, ",0123456789at:", longopts, NULL))
          != -1)
     {
       switch (c)
@@ -298,7 +320,7 @@ main (int argc, char **argv)
               have_tabval = true;
             }
           if (!DECIMAL_DIGIT_ACCUMULATE (tabval, c - '0'))
-            error (EXIT_FAILURE, 0, _("tab stop value is too large"));
+            error (EXIT_FAILURE, 0, _("tab stop is too large"));
           break;
         }
     }
@@ -311,7 +333,7 @@ main (int argc, char **argv)
 
   finalize_tab_stops ();
 
-  set_file_list ((optind < argc) ? &argv[optind] : nullptr);
+  set_file_list ((optind < argc) ? &argv[optind] : NULL);
 
   unexpand ();
 

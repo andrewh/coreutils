@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Simple dircolors tests.
 
-# Copyright (C) 1998-2025 Free Software Foundation, Inc.
+# Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@ my @Tests =
       {OUT => "LS_COLORS='';\nexport LS_COLORS\n"}],
      ['term-4', '-b', {IN => "TERM N*match\nowt 40;33\n"},
       {OUT => "LS_COLORS='';\nexport LS_COLORS\n"}],
+     ['term-5', '-b', {IN => "TERM []\nowt 40;33\n"},
+      {OUT => "LS_COLORS='';\nexport LS_COLORS\n"}],
 
      ['colorterm-1', '-b', {ENV => 'COLORTERM=any'},
       {IN => "COLORTERM ?*\nowt 40;33\n"},
@@ -63,6 +65,11 @@ my @Tests =
 
      ['print-ls-colors', '--print-ls-colors', {IN => "OWT 40;33\n"},
       {OUT => "\x1B[40;33mtw\t40;33\x1B[0m\n"}],
+
+     ['csh-history-sub', '-c',
+      {IN => "*.a!#^:s\\LS_COLORS\\' ; touch ./a; echo '\n"},
+      {OUT => ("setenv LS_COLORS '*.a\\!#^:s\\LS_COLORS\\'\\''=; "
+               . "touch ./a; echo '\\'':'\n")}],
 
      # CAREFUL: always specify the -b option, unless explicitly testing
      # for csh syntax output, or --print-ls-color output.

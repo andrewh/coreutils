@@ -1,5 +1,5 @@
 /* Create a temporary file or directory, safely.
-   Copyright (C) 2007-2025 Free Software Foundation, Inc.
+   Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,14 +45,14 @@ enum
 
 static struct option const longopts[] =
 {
-  {"directory", no_argument, nullptr, 'd'},
-  {"quiet", no_argument, nullptr, 'q'},
-  {"dry-run", no_argument, nullptr, 'u'},
-  {"suffix", required_argument, nullptr, SUFFIX_OPTION},
-  {"tmpdir", optional_argument, nullptr, 'p'},
+  {"directory", no_argument, NULL, 'd'},
+  {"quiet", no_argument, NULL, 'q'},
+  {"dry-run", no_argument, NULL, 'u'},
+  {"suffix", required_argument, NULL, SUFFIX_OPTION},
+  {"tmpdir", optional_argument, NULL, 'p'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 void
@@ -72,29 +72,39 @@ If TEMPLATE is not specified, use tmp.XXXXXXXXXX, and --tmpdir is implied.\n\
 Files are created u+rw, and directories u+rwx, minus umask restrictions.\n\
 "), stdout);
       fputs ("\n", stdout);
-      fputs (_("\
-  -d, --directory     create a directory, not a file\n\
-  -u, --dry-run       do not create anything; merely print a name (unsafe)\n\
-  -q, --quiet         suppress diagnostics about file/dir-creation failure\n\
-"), stdout);
-      fputs (_("\
-      --suffix=SUFF   append SUFF to TEMPLATE; SUFF must not contain a slash.\n\
-                        This option is implied if TEMPLATE does not end in X\n\
-"), stdout);
-      fputs (_("\
-  -p DIR, --tmpdir[=DIR]  interpret TEMPLATE relative to DIR; if DIR is not\n\
-                        specified, use $TMPDIR if set, else /tmp.  With\n\
-                        this option, TEMPLATE must not be an absolute name;\n\
-                        unlike with -t, TEMPLATE may contain slashes, but\n\
-                        mktemp creates only the final component\n\
-"), stdout);
-      fputs (_("\
-  -t                  interpret TEMPLATE as a single file name component,\n\
-                        relative to a directory: $TMPDIR, if set; else the\n\
-                        directory specified via -p; else /tmp [deprecated]\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (_("\
+  -d, --directory\n\
+         create a directory, not a file\n\
+"));
+      oputs (_("\
+  -u, --dry-run\n\
+         do not create anything; merely print a name (unsafe)\n\
+"));
+      oputs (_("\
+  -q, --quiet\n\
+         suppress diagnostics about file/dir-creation failure\n\
+"));
+      oputs (_("\
+      --suffix=SUFF\n\
+         append SUFF to TEMPLATE; SUFF must not contain a slash.\n\
+         This option is implied if TEMPLATE does not end in X\n\
+"));
+      oputs (_("\
+  -p DIR, --tmpdir[=DIR]\n\
+         interpret TEMPLATE relative to DIR;\n\
+         if DIR is not specified, use $TMPDIR if set, else /tmp.\n\
+         With this option, TEMPLATE must not be an absolute name;\n\
+         unlike with -t, TEMPLATE may contain slashes,\n\
+         but mktemp creates only the final component\n\
+"));
+      oputs (_("\
+  -t\n\
+         interpret TEMPLATE as a single file name component,\n\
+         relative to a directory: $TMPDIR, if set;\n\
+         else the directory specified via -p; else /tmp [deprecated]\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
 
@@ -144,11 +154,11 @@ int
 main (int argc, char **argv)
 {
   char const *dest_dir;
-  char const *dest_dir_arg = nullptr;
+  char const *dest_dir_arg = NULL;
   bool suppress_file_err = false;
   int c;
   char *template;
-  char *suffix = nullptr;
+  char *suffix = NULL;
   bool use_dest_dir = false;
   bool deprecated_t_option = false;
   bool create_directory = false;
@@ -156,7 +166,7 @@ main (int argc, char **argv)
   int status = EXIT_SUCCESS;
   size_t x_count;
   size_t suffix_len;
-  char *dest_name = nullptr;
+  char *dest_name = NULL;
 
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
@@ -166,7 +176,7 @@ main (int argc, char **argv)
 
   atexit (maybe_close_stdout);
 
-  while ((c = getopt_long (argc, argv, "dp:qtuV", longopts, nullptr)) != -1)
+  while ((c = getopt_long (argc, argv, "dp:qtuV", longopts, NULL)) != -1)
     {
       switch (c)
         {
@@ -296,7 +306,7 @@ main (int argc, char **argv)
                    quote (template));
         }
 
-      dest_name = file_name_concat (dest_dir, template, nullptr);
+      dest_name = file_name_concat (dest_dir, template, NULL);
       free (template);
       template = dest_name;
       /* Note that suffix is now invalid.  */
@@ -337,7 +347,7 @@ main (int argc, char **argv)
       if (!dry_run && ((stdout_closed = true), close_stream (stdout) != 0))
         {
           int saved_errno = errno;
-          remove (dest_name);
+          (create_directory ? rmdir : unlink) (dest_name);
           if (!suppress_file_err)
             error (0, saved_errno, _("write error"));
           status = EXIT_FAILURE;

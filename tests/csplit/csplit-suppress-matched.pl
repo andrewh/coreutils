@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2013-2025 Free Software Foundation, Inc.
+# Copyright (C) 2013-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -121,6 +121,31 @@ my @csplit_tests =
   # suppress matched + elide-empty
   ["int-2", '--suppress-matched -zq - 2 4 6', {IN_PIPE => $IN_SEQ_6},
     {OUTPUTS => [ "1\n", "3\n", "5\n" ]}],
+
+  # Mixing a line number and a regexp that matches the last line.
+  # The trailing (empty) split for the remainder of the input is
+  # still created, as in the all-line-numbers case above.
+  ["mixed-1", '--suppress-matched -q - 3 /^6$/', {IN_PIPE => $IN_SEQ_6},
+    {OUTPUTS => [ "1\n2\n", "4\n5\n", "" ]}],
+  # ... and elide-empty removes just that trailing split.
+  ["mixed-2", '--suppress-matched -zq - 3 /^6$/', {IN_PIPE => $IN_SEQ_6},
+    {OUTPUTS => [ "1\n2\n", "4\n5\n" ]}],
+
+  # A line number one past the end: there is no line to suppress,
+  # so the split is complete.
+  ["past-end-1", '--suppress-matched -q - 7', {IN_PIPE => $IN_SEQ_6},
+    {OUTPUTS => [ "1\n2\n3\n4\n5\n6\n", "" ]}],
+  ["past-end-2", "--suppress-matched -q - 3 '{1}'",
+    {IN_PIPE => "1\n2\n3\n4\n5\n"},
+    {OUTPUTS => [ "1\n2\n", "4\n5\n", "" ]}],
+  ["past-end-3", "-k --suppress-matched -q - 3 '{*}'",
+    {IN_PIPE => "1\n2\n3\n4\n5\n"},
+    {OUTPUTS => [ "1\n2\n", "4\n5\n", "" ]}, {EXIT => 1},
+    {ERR => "$prog: '3': line number out of range on repetition 2\n"}],
+  # Line 6 was already suppressed, so nothing is left for line 7.
+  ["past-end-4", '--suppress-matched -q - 6 7', {IN_PIPE => $IN_SEQ_6},
+    {OUTPUTS => [ ]}, {EXIT => 1},
+    {ERR => "$prog: '7': line number out of range\n"}],
 );
 
 

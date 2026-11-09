@@ -1,5 +1,5 @@
 /* logname -- print user's login name
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 /* The official name of this program (e.g., no 'g' prefix).  */
 #define PROGRAM_NAME "logname"
 
-#define AUTHORS proper_name ("FIXME: unknown")
+#define AUTHORS proper_name ("David MacKenzie")
 
 void
 usage (int status)
@@ -39,8 +39,8 @@ usage (int status)
 Print the user's login name.\n\
 \n\
 "), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -49,8 +49,6 @@ Print the user's login name.\n\
 int
 main (int argc, char **argv)
 {
-  char *cp;
-
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
   setlocale (LC_ALL, "");
@@ -61,7 +59,7 @@ main (int argc, char **argv)
 
   parse_gnu_standard_options_only (argc, argv, PROGRAM_NAME, PACKAGE_NAME,
                                    Version, true, usage, AUTHORS,
-                                   (char const *) nullptr);
+                                   (char const *) NULL);
 
   if (optind < argc)
     {
@@ -71,7 +69,7 @@ main (int argc, char **argv)
 
   /* POSIX requires using getlogin (or equivalent code) and prohibits
      using a fallback technique.  */
-  cp = getlogin ();
+  char const *cp = getlogin ();
   if (! cp)
     error (EXIT_FAILURE, 0, _("no login name"));
 

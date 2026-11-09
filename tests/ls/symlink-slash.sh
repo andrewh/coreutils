@@ -1,7 +1,8 @@
 #!/bin/sh
-# Do dereference a symlink arg if its name is written with a trailing slash.
+# Do dereference a symlink arg if its name is written with a trailing
+# slash, or with a trailing '/.' (both denote the directory itself).
 
-# Copyright (C) 1999-2025 Free Software Foundation, Inc.
+# Copyright (C) 1999-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +26,11 @@ ln -s dir symlink || framework_failure_
 set -- $(ls -l symlink/)
 
 # Prior to fileutils-4.0k, the following would have output '... symlink -> dir'.
-test "$*" = 'total 0' && : || fail=1
+test "$*" = 'total 0' || fail=1
+
+# A path ending in '/.' refers to the directory itself, so it must be
+# dereferenced and its (empty) contents listed, not the symlink shown.
+set -- $(ls -l symlink/.)
+test "$*" = 'total 0' || fail=1
 
 Exit $fail

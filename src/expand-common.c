@@ -1,5 +1,5 @@
 /* expand-common - common functionality for expand/unexpand
-   Copyright (C) 1989-2025 Free Software Foundation, Inc.
+   Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 
 #include <config.h>
 
-#include <ctype.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include "system.h"
@@ -45,7 +44,7 @@ idx_t max_column_width;
 /* Array of the explicit column numbers of the tab stops;
    after 'tab_list' is exhausted, each additional tab is replaced
    by a space.  The first column is column 0.  */
-static colno *tab_list = nullptr;
+static colno *tab_list = NULL;
 
 /* The number of allocated entries in 'tab_list'.  */
 static idx_t n_tabs_allocated = 0;
@@ -55,12 +54,12 @@ static idx_t n_tabs_allocated = 0;
 static idx_t first_free_tab = 0;
 
 /* Null-terminated array of input filenames.  */
-static char **file_list = nullptr;
+static char **file_list = NULL;
 
 /* Default for 'file_list' if no files are given on the command line.  */
 static char *stdin_argv[] =
 {
-  (char *) "-", nullptr
+  (char *) "-", NULL
 };
 
 /* True if we have ever read standard input.  */
@@ -70,6 +69,15 @@ static bool have_read_stdin = false;
 int exit_status = EXIT_SUCCESS;
 
 
+static void
+set_max_column_width (colno width)
+{
+  if (max_column_width < width)
+    {
+      if (ckd_add (&max_column_width, width, 0))
+        error (EXIT_FAILURE, 0, _("tabs are too far apart"));
+    }
+}
 
 /* Add tab stop TABVAL to the end of 'tab_list'.  */
 extern void
@@ -82,11 +90,7 @@ add_tab_stop (colno tabval)
     tab_list = xpalloc (tab_list, &n_tabs_allocated, 1, -1, sizeof *tab_list);
   tab_list[first_free_tab++] = tabval;
 
-  if (max_column_width < column_width)
-    {
-      if (ckd_add (&max_column_width, column_width, 0))
-        error (EXIT_FAILURE, 0, _("tabs are too far apart"));
-    }
+  set_max_column_width (column_width);
 }
 
 static bool
@@ -102,6 +106,8 @@ set_extend_size (colno tabval)
       ok = false;
     }
   extend_size = tabval;
+
+  set_max_column_width (extend_size);
 
   return ok;
 }
@@ -120,6 +126,8 @@ set_increment_size (colno tabval)
     }
   increment_size = tabval;
 
+  set_max_column_width (increment_size);
+
   return ok;
 }
 
@@ -132,7 +140,7 @@ parse_tab_stops (char const *stops)
   colno tabval = 0;
   bool extend_tabval = false;
   bool increment_tabval = false;
-  char const *num_start = nullptr;
+  char const *num_start = NULL;
   bool ok = true;
 
   for (; *stops; stops++)
@@ -335,7 +343,7 @@ set_file_list (char **list)
 /* Close the old stream pointer FP if it is non-null,
    and return a new one opened to read the next input file.
    Open a filename of '-' as the standard input.
-   Return nullptr if there are no more input files.  */
+   Return NULL if there are no more input files.  */
 
 extern FILE *
 next_file (FILE *fp)
@@ -348,7 +356,7 @@ next_file (FILE *fp)
       int err = errno;
       if (!ferror (fp))
         err = 0;
-      if (STREQ (prev_file, "-"))
+      if (streq (prev_file, "-"))
         clearerr (fp);		/* Also clear EOF.  */
       else if (fclose (fp) != 0)
         err = errno;
@@ -359,9 +367,9 @@ next_file (FILE *fp)
         }
     }
 
-  while ((file = *file_list++) != nullptr)
+  while ((file = *file_list++) != NULL)
     {
-      if (STREQ (file, "-"))
+      if (streq (file, "-"))
         {
           have_read_stdin = true;
           fp = stdin;
@@ -377,10 +385,10 @@ next_file (FILE *fp)
       error (0, errno, "%s", quotef (file));
       exit_status = EXIT_FAILURE;
     }
-  return nullptr;
+  return NULL;
 }
 
-/* */
+/* Close standard input if we have read from it.  */
 extern void
 cleanup_file_list_stdin (void)
 {
@@ -388,19 +396,21 @@ cleanup_file_list_stdin (void)
       error (EXIT_FAILURE, errno, "-");
 }
 
-
+/* Emit the --help output for --tabs=LIST option accepted by expand and
+   unexpand.  */
 extern void
-emit_tab_list_info (void)
+emit_tab_list_info (char const *program)
 {
   /* suppress syntax check for emit_mandatory_arg_note() */
+  oputs_ (program, _("\
+  -t, --tabs=LIST\n\
+         use comma separated list of tab positions.\n\
+"));
   fputs (_("\
-  -t, --tabs=LIST  use comma separated list of tab positions.\n\
-"), stdout);
-  fputs (_("\
-                     The last specified position can be prefixed with '/'\n\
-                     to specify a tab size to use after the last\n\
-                     explicitly specified tab stop.  Also a prefix of '+'\n\
-                     can be used to align remaining tab stops relative to\n\
-                     the last specified tab stop instead of the first column\n\
+         The last specified position can be prefixed with '/'\n\
+         to specify a tab size to use after the last\n\
+         explicitly specified tab stop.  Also a prefix of '+'\n\
+         can be used to align remaining tab stops relative to\n\
+         the last specified tab stop instead of the first column\n\
 "), stdout);
 }

@@ -2,7 +2,7 @@
 # make sure cp and mv can handle many combinations of local and
 # other-partition regular/symlink'd files.
 
-# Copyright (C) 2000-2025 Free Software Foundation, Inc.
+# Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,6 +26,13 @@ cleanup_() { rm -rf "$other_partition_tmpdir"; }
 # On NFS on Linux 2.6.9 at least we get:
 # mv: preserving permissions for 'rem_sl': Operation not supported
 require_local_dir_
+
+# With podman we get /dev/shm and / created with default SELinux context,
+# but can't explicitly set xattrs with that context, giving:
+# mv: setting attributes for 'loc_reg': Operation not supported
+touch $other_partition_tmpdir/tsup &&
+mv $other_partition_tmpdir/tsup . 2>tsup.err &&
+compare /dev/null tsup.err || skip_ 'unsupported mv warning'
 
 pwd_tmp=$(pwd)
 

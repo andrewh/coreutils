@@ -1,7 +1,7 @@
 #!/bin/sh
 # test for readlink mode.
 
-# Copyright (C) 2004-2025 Free Software Foundation, Inc.
+# Copyright (C) 2004-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ mkdir subdir || framework_failure_
 touch regfile || framework_failure_
 ln -s regfile link1 || framework_failure_
 ln -s missing link2 || framework_failure_
+ln -s 'q name' qlink || framework_failure_
 
 
 v=$(readlink link1) || fail=1
@@ -30,6 +31,20 @@ test "$v" = regfile || fail=1
 
 v=$(readlink link2) || fail=1
 test "$v" = missing || fail=1
+
+# QUOTING_STYLE does not affect redirected output.
+printf 'q name\n' > exp || framework_failure_
+for style in literal shell-always invalid; do
+  QUOTING_STYLE="$style" readlink qlink > out 2> err || fail=1
+  compare exp out || fail=1
+  compare /dev/null err || fail=1
+done
+
+# --zero disables quoting, and does not inspect QUOTING_STYLE.
+QUOTING_STYLE=invalid readlink -z qlink > out 2> err || fail=1
+printf 'q name\0' > exp || framework_failure_
+compare exp out || fail=1
+compare /dev/null err || fail=1
 
 v=$(returns_ 1 readlink subdir) || fail=1
 test -z "$v" || fail=1
@@ -39,5 +54,25 @@ test -z "$v" || fail=1
 
 v=$(returns_ 1 readlink missing) || fail=1
 test -z "$v" || fail=1
+
+# From coreutils 9.0 to 9.12, the following would loop until the
+# system ran out of memory.
+ln -s loop/a loop || framework_failure_
+vm=$(get_min_ulimit_v_ readlink -f link1) && {
+  echo 'loop/a' >exp || framework_failure_
+  for opt in '' -f -e -m; do
+    if test -z "$opt"; then
+      exp=exp
+      exp_rc=0
+    else
+      exp=/dev/null
+      exp_rc=1
+    fi
+    (ulimit -v $(($vm+6000)) &&
+       returns_ $exp_rc timeout 10 readlink $opt loop >out 2>err) || fail=1
+    compare $exp out || fail=1
+    compare /dev/null err || fail=1
+  done
+}
 
 Exit $fail

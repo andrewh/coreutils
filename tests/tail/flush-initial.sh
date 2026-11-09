@@ -1,7 +1,7 @@
 #!/bin/sh
 # inotify-based tail -f didn't flush its initial output before blocking
 
-# Copyright (C) 2009-2025 Free Software Foundation, Inc.
+# Copyright (C) 2009-2026 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ print_ver_ tail
 fastpoll='-s.1 --max-unchanged-stats=1'
 
 # Terminate any background tail process
-cleanup_() { kill $pid 2>/dev/null && wait $pid; }
+cleanup_() { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; pid=; }
 
 echo line > in || framework_failure_
 # Output should be buffered since we're writing to file
@@ -39,6 +39,5 @@ tail_flush()
 }
 retry_delay_ tail_flush .1 5 || fail=1
 
-cleanup_
 
 Exit $fail

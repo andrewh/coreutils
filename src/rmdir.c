@@ -1,6 +1,6 @@
 /* rmdir -- remove directories
 
-   Copyright (C) 1990-2025 Free Software Foundation, Inc.
+   Copyright (C) 1990-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include <sys/types.h>
 
 #include "system.h"
+#include "issymlink.h"
 #include "prog-fprintf.h"
 
 /* The official name of this program (e.g., no 'g' prefix).  */
@@ -56,15 +57,15 @@ static struct option const longopts[] =
 {
   /* Don't name this '--force' because it's not close enough in meaning
      to e.g. rm's -f option.  */
-  {"ignore-fail-on-non-empty", no_argument, nullptr,
+  {"ignore-fail-on-non-empty", no_argument, NULL,
    IGNORE_FAIL_ON_NON_EMPTY_OPTION},
 
-  {"path", no_argument, nullptr, 'p'},  /* Deprecated.  */
-  {"parents", no_argument, nullptr, 'p'},
-  {"verbose", no_argument, nullptr, 'v'},
+  {"path", no_argument, NULL, 'p'},  /* Deprecated.  */
+  {"parents", no_argument, NULL, 'p'},
+  {"verbose", no_argument, NULL, 'v'},
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
-  {nullptr, 0, nullptr, 0}
+  {NULL, 0, NULL, 0}
 };
 
 /* Return true if ERROR_NUMBER is one of the values associated
@@ -111,14 +112,13 @@ ignorable_failure (int error_number, char const *dir)
 static bool
 remove_parents (char *dir)
 {
-  char *slash;
   bool ok = true;
 
   strip_trailing_slashes (dir);
   while (true)
     {
-      slash = strrchr (dir, '/');
-      if (slash == nullptr)
+      char *slash = strrchr (dir, '/');
+      if (slash == NULL)
         break;
       /* Remove any characters after the slash, skipping any extra
          slashes in a row. */
@@ -174,20 +174,21 @@ usage (int status)
 Remove the DIRECTORY(ies), if they are empty.\n\
 \n\
 "), stdout);
-      fputs (_("\
+      oputs (_("\
       --ignore-fail-on-non-empty\n\
-                    ignore each failure to remove a non-empty directory\n\
-"), stdout);
-      fputs (_("\
-  -p, --parents     remove DIRECTORY and its ancestors;\n\
-                    e.g., 'rmdir -p a/b' is similar to 'rmdir a/b a'\n\
-\n\
-"), stdout);
-      fputs (_("\
-  -v, --verbose     output a diagnostic for every directory processed\n\
-"), stdout);
-      fputs (HELP_OPTION_DESCRIPTION, stdout);
-      fputs (VERSION_OPTION_DESCRIPTION, stdout);
+         ignore each failure to remove a non-empty directory\n\
+"));
+      oputs (_("\
+  -p, --parents\n\
+         remove DIRECTORY and its ancestors;\n\
+         e.g., 'rmdir -p a/b' is similar to 'rmdir a/b a'\n\
+"));
+      oputs (_("\
+  -v, --verbose\n\
+         output a diagnostic for every directory processed\n\
+"));
+      oputs (HELP_OPTION_DESCRIPTION);
+      oputs (VERSION_OPTION_DESCRIPTION);
       emit_ancillary_info (PROGRAM_NAME);
     }
   exit (status);
@@ -196,9 +197,6 @@ Remove the DIRECTORY(ies), if they are empty.\n\
 int
 main (int argc, char **argv)
 {
-  bool ok = true;
-  int optc;
-
   initialize_main (&argc, &argv);
   set_program_name (argv[0]);
   setlocale (LC_ALL, "");
@@ -207,9 +205,8 @@ main (int argc, char **argv)
 
   atexit (close_stdout);
 
-  remove_empty_parents = false;
-
-  while ((optc = getopt_long (argc, argv, "pv", longopts, nullptr)) != -1)
+  int optc;
+  while ((optc = getopt_long (argc, argv, "pv", longopts, NULL)) != -1)
     {
       switch (optc)
         {
@@ -235,6 +232,7 @@ main (int argc, char **argv)
       usage (EXIT_FAILURE);
     }
 
+  bool ok = true;
   for (; optind < argc; ++optind)
     {
       char *dir = argv[optind];
@@ -269,8 +267,7 @@ main (int argc, char **argv)
                       /* Ensure the last component was a symlink.  */
                       char *dir_arg = xstrdup (dir);
                       strip_trailing_slashes (dir);
-                      ret = lstat (dir, &st);
-                      if (ret == 0 && S_ISLNK (st.st_mode))
+                      if (issymlink (dir) == 1)
                         {
                           error (0, 0,
                                  _("failed to remove %s:"

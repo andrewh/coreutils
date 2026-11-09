@@ -1,7 +1,7 @@
 # Make coreutils programs.                             -*-Makefile-*-
 # This is included by the top-level Makefile.am.
 
-## Copyright (C) 2024-2025 Free Software Foundation, Inc.
+## Copyright (C) 2024-2026 Free Software Foundation, Inc.
 
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@ gl/lib/fd-reopen.c \
 gl/lib/fd-reopen.h \
 gl/lib/heap.c \
 gl/lib/heap.h \
+gl/lib/mbbuf.c \
+gl/lib/mbbuf.h \
 gl/lib/rand-isaac.c \
 gl/lib/rand-isaac.h \
 gl/lib/randint.c \
@@ -49,6 +51,8 @@ gl/lib/strnumcmp.c \
 gl/lib/strnumcmp.h \
 gl/lib/targetdir.c \
 gl/lib/targetdir.h \
+gl/lib/utf8.c \
+gl/lib/utf8.h \
 gl/lib/xdectoimax.c \
 gl/lib/xdectoint.c \
 gl/lib/xdectoint.h \
@@ -65,6 +69,7 @@ gl/modules/fadvise-tests \
 gl/modules/fd-reopen \
 gl/modules/heap \
 gl/modules/link-tests.diff \
+gl/modules/mbbuf \
 gl/modules/randint \
 gl/modules/randperm \
 gl/modules/randread \
@@ -75,6 +80,7 @@ gl/modules/skipchars \
 gl/modules/smack \
 gl/modules/strnumcmp \
 gl/modules/targetdir \
+gl/modules/utf8 \
 gl/modules/xdectoint \
 gl/modules/xfts \
 gl/tests/test-fadvise.c \
