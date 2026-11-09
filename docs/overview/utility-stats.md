@@ -2,7 +2,7 @@
 
 Source: `src/*.c` · Generated from commit `97017cfbd`
 
-This page lists statistics for all coreutils utilities to help understand their complexity and characteristics.
+This page lists statistics for all coreutils utilities to help understand their complexity and characteristics. Click column headers to sort, and use the search box to filter.
 
 | Utility | Lines of code | Category | Options | Shared modules | Test files |
 |---------|---------------|----------|---------|----------------|------------|

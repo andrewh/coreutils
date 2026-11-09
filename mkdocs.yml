@@ -57,6 +57,9 @@ markdown_extensions:
 exclude_docs: |
   requirements.txt
 
+plugins:
+  - table-reader
+
 nav:
   - Home: index.md
   - Overview:
