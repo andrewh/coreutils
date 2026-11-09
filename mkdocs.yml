@@ -69,27 +69,63 @@ nav:
   - Commands:
       - commands/index.md
       - Files and directories:
+          - basename: commands/basename.md
+          - chcon: commands/chcon.md
           - chmod: commands/chmod.md
           - chown: commands/chown.md
+          - chroot: commands/chroot.md
           - cp: commands/cp.md
-          - install: commands/install.md
-          - ln: commands/ln.md
-          - mkdir: commands/mkdir.md
-          - mv: commands/mv.md
-          - rm: commands/rm.md
-          - touch: commands/touch.md
           - dd: commands/dd.md
+          - dirname: commands/dirname.md
+          - install: commands/install.md
+          - link: commands/link.md
+          - ln: commands/ln.md
+          - logname: commands/logname.md
+          - mkdir: commands/mkdir.md
+          - mkfifo: commands/mkfifo.md
+          - mknod: commands/mknod.md
+          - mktemp: commands/mktemp.md
+          - mv: commands/mv.md
+          - pwd: commands/pwd.md
+          - readlink: commands/readlink.md
+          - realpath: commands/realpath.md
+          - rm: commands/rm.md
+          - rmdir: commands/rmdir.md
+          - touch: commands/touch.md
+          - unlink: commands/unlink.md
       - Text and data:
+          - basenc: commands/basenc.md
           - cat: commands/cat.md
           - cksum: commands/cksum.md
+          - comm: commands/comm.md
+          - csplit: commands/csplit.md
           - cut: commands/cut.md
+          - dircolors: commands/dircolors.md
+          - echo: commands/echo.md
+          - expand: commands/expand.md
+          - expr: commands/expr.md
+          - factor: commands/factor.md
+          - fold: commands/fold.md
+          - fmt: commands/fmt.md
           - head: commands/head.md
+          - join: commands/join.md
+          - nl: commands/nl.md
           - od: commands/od.md
+          - paste: commands/paste.md
+          - pathchk: commands/pathchk.md
+          - pinky: commands/pinky.md
+          - pr: commands/pr.md
+          - ptx: commands/ptx.md
+          - shuf: commands/shuf.md
           - sort: commands/sort.md
           - split: commands/split.md
           - tail: commands/tail.md
+          - tac: commands/tac.md
           - tee: commands/tee.md
+          - tsort: commands/tsort.md
           - tr: commands/tr.md
+          - unexpand: commands/unexpand.md
+          - uniq: commands/uniq.md
           - wc: commands/wc.md
       - File and disk information:
           - df: commands/df.md
@@ -98,12 +134,36 @@ nav:
           - stat: commands/stat.md
       - System and users:
           - date: commands/date.md
+          - env: commands/env.md
+          - groups: commands/groups.md
+          - hostid: commands/hostid.md
           - hostname: commands/hostname.md
           - id: commands/id.md
+          - kill: commands/kill.md
+          - nice: commands/nice.md
+          - nohup: commands/nohup.md
+          - nproc: commands/nproc.md
+          - numfmt: commands/numfmt.md
+          - printenv: commands/printenv.md
+          - runcon: commands/runcon.md
+          - shred: commands/shred.md
+          - sleep: commands/sleep.md
+          - stty: commands/stty.md
+          - sum: commands/sum.md
+          - sync: commands/sync.md
+          - test: commands/test.md
+          - timeout: commands/timeout.md
+          - true: commands/true.md
+          - truncate: commands/truncate.md
+          - tty: commands/tty.md
           - uname: commands/uname.md
           - uptime: commands/uptime.md
+          - users: commands/users.md
           - who: commands/who.md
+          - whoami: commands/whoami.md
+          - yes: commands/yes.md
       - Shell helpers:
+          - getlimits: commands/getlimits.md
           - printf: commands/printf.md
           - seq: commands/seq.md
           - stdbuf: commands/stdbuf.md
