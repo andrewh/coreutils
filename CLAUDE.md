@@ -59,12 +59,17 @@ make check TESTS=tests/misc/test-name.pl VERBOSE=yes DEBUG=yes SUBDIRS=.
 ## Code Architecture
 
 ### Source Organization
-- **`src/`** - Main program source files (one `.c` file per utility)
-- **`lib/`** - Shared utility functions and libraries
-- **`gl/`** - Gnulib imported modules
+- **`src/`** - Main program source files (one `.c` file per utility) plus
+  shared modules such as `copy.c`, `remove.c`, `chown-core.c`
+- **`lib/`** - Gnulib modules, populated by `./bootstrap` (nearly empty in a
+  fresh clone)
+- **`gl/`** - Coreutils-specific modules packaged gnulib-style
+  (`targetdir`, `xfts`, `root-dev-ino`, `randint`, ...)
+- **`gnulib/`** - Gnulib git submodule
 - **`tests/`** - Comprehensive test suite organized by utility
 - **`man/`** - Man page templates (auto-generated from `--help`)
-- **`doc/`** - Texinfo documentation
+- **`doc/`** - Texinfo documentation (the user manual)
+- **`docs/`** - Source-level internals notes, built with MkDocs (fork only)
 
 ### Key Architectural Patterns
 
@@ -76,17 +81,20 @@ make check TESTS=tests/misc/test-name.pl VERBOSE=yes DEBUG=yes SUBDIRS=.
 **Program Structure:**
 - Each utility in `src/PROGRAM.c` follows similar patterns
 - Common includes: `config.h`, `system.h`, utility-specific headers
-- Shared functionality in `lib/` (e.g., `copy.c` for cp/mv operations)
-- Consistent option parsing using gnulib's argp or getopt
+- Shared functionality in `src/` modules (e.g., `copy.c` for cp/mv/install)
+- Option parsing with `getopt_long`, or `parse_gnu_standard_options_only`
+  for programs with no options of their own (coreutils does not use argp)
 
 **Core Shared Components:**
 - `src/system.h` - System-dependent definitions for all coreutils
-- `src/copy.c` / `src/copy.h` - File copying operations (used by cp, mv, install)
+- `src/copy.c`, `src/copy-file-data.c` / `src/copy.h` - File copying
+  (used by cp, mv, install)
+- `src/remove.c` - Recursive removal (used by rm, mv)
 - `lib/` - Portable utility functions imported from gnulib
 
 ### Program Categories
 - **File operations:** `cp`, `mv`, `rm`, `ln`, `install`
-- **Text processing:** `cat`, `sort`, `uniq`, `cut`, `tr`, `sed`-like tools
+- **Text processing:** `cat`, `sort`, `uniq`, `cut`, `tr`, `head`, `tail`
 - **Directory listing:** `ls`, `dir`, `vdir`
 - **File info:** `stat`, `wc`, `cksum`, `du`, `df`
 - **System info:** `uname`, `whoami`, `groups`, `id`
@@ -126,7 +134,8 @@ make check TESTS=tests/misc/test-name.pl VERBOSE=yes DEBUG=yes SUBDIRS=.
 - Requires autotools (autoconf, automake)
 - Gnulib for portable library functions
 - Perl for test suite (optional but recommended)
-- Modern GCC with C99 support
+- A modern C compiler (the code uses C23 features such as `ckd_add` and
+  `unreachable`, with gnulib supplying fallbacks for older compilers)
 
 ## Special Considerations
 
@@ -144,3 +153,16 @@ make check TESTS=tests/misc/test-name.pl VERBOSE=yes DEBUG=yes SUBDIRS=.
 - Alternative compilation mode combining all utilities
 - Useful for embedded systems or minimal installations
 - Maintains full functionality with reduced storage requirements
+
+## Internals Documentation (docs/)
+
+This fork has MkDocs notes on how each program works, in `docs/`
+(config in `mkdocs.yml`, pinned deps in `docs/requirements.txt`).
+
+- Preview: `uvx --with-requirements docs/requirements.txt mkdocs serve`
+- Verify: `uvx --with-requirements docs/requirements.txt mkdocs build --strict`
+  (fails on broken links or anchors)
+- Every claim must be checked against the source; quote real code only,
+  with `src/FILE.c:LINE` references. Line numbers refer to the commit named
+  in `docs/index.md`. Follow `docs/overview/page-template.md` for new pages
+  and add them to `nav` in `mkdocs.yml`.

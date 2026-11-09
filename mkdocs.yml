@@ -1,0 +1,109 @@
+site_name: GNU coreutils internals
+site_description: Source-level notes on how the GNU coreutils programs are implemented
+repo_url: https://github.com/andrewh/coreutils
+repo_name: andrewh/coreutils
+edit_uri: edit/master/docs/
+docs_dir: docs
+site_dir: site
+strict: true
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+exclude_docs: |
+  requirements.txt
+
+nav:
+  - Home: index.md
+  - Overview:
+      - overview/index.md
+      - Source layout: overview/source-layout.md
+      - Program skeleton: overview/program-skeleton.md
+      - Shared infrastructure: overview/shared-infrastructure.md
+      - Building and testing: overview/build-and-test.md
+      - Writing a page: overview/page-template.md
+  - Commands:
+      - commands/index.md
+      - Files and directories:
+          - chmod: commands/chmod.md
+          - chown: commands/chown.md
+          - cp: commands/cp.md
+          - install: commands/install.md
+          - ln: commands/ln.md
+          - mkdir: commands/mkdir.md
+          - mv: commands/mv.md
+          - rm: commands/rm.md
+          - touch: commands/touch.md
+          - dd: commands/dd.md
+      - Text and data:
+          - cat: commands/cat.md
+          - cksum: commands/cksum.md
+          - cut: commands/cut.md
+          - head: commands/head.md
+          - od: commands/od.md
+          - sort: commands/sort.md
+          - split: commands/split.md
+          - tail: commands/tail.md
+          - tee: commands/tee.md
+          - tr: commands/tr.md
+          - wc: commands/wc.md
+      - File and disk information:
+          - df: commands/df.md
+          - du: commands/du.md
+          - ls: commands/ls.md
+          - stat: commands/stat.md
+      - System and users:
+          - date: commands/date.md
+          - hostname: commands/hostname.md
+          - id: commands/id.md
+          - uname: commands/uname.md
+          - uptime: commands/uptime.md
+          - who: commands/who.md
+      - Shell helpers:
+          - printf: commands/printf.md
+          - seq: commands/seq.md
+          - stdbuf: commands/stdbuf.md

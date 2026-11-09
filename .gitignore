@@ -227,3 +227,6 @@ Makefile.in
 TAGS
 THANKS
 THANKS-to-translators
+
+# MkDocs
+/site/
