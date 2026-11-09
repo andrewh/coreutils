@@ -65,6 +65,7 @@ nav:
       - Program skeleton: overview/program-skeleton.md
       - Shared infrastructure: overview/shared-infrastructure.md
       - Building and testing: overview/build-and-test.md
+      - Utility statistics: overview/utility-stats.md
       - Writing a page: overview/page-template.md
   - Commands:
       - commands/index.md
