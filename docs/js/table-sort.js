@@ -1,6 +1,15 @@
 // Simple table sorting and filtering for MkDocs
 (function() {
   document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Mermaid
+    if (typeof mermaid !== 'undefined') {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'default',
+        securityLevel: 'loose',
+      });
+    }
+
     // Find all tables in the document
     const tables = document.querySelectorAll('table:not([class*="no-sort"])');
 
