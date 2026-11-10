@@ -1,0 +1,322 @@
+// Add clickable links to library functions and headers in code blocks
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    // Mappings for header files
+    const headerLinks = {
+      'stdio.h': 'https://en.cppreference.com/w/c/io',
+      'stdlib.h': 'https://en.cppreference.com/w/c/utility/program',
+      'string.h': 'https://en.cppreference.com/w/c/string/byte',
+      'ctype.h': 'https://en.cppreference.com/w/c/string/byte',
+      'unistd.h': 'https://man7.org/linux/man-pages/man0/unistd.h.0p.html',
+      'fcntl.h': 'https://man7.org/linux/man-pages/man2/fcntl.2.html',
+      'sys/stat.h': 'https://man7.org/linux/man-pages/man2/stat.2.html',
+      'sys/types.h': 'https://man7.org/linux/man-pages/man0/sys_types.h.0p.html',
+      'sys/wait.h': 'https://man7.org/linux/man-pages/man2/wait.2.html',
+      'dirent.h': 'https://man7.org/linux/man-pages/man3/dirent.3.html',
+      'errno.h': 'https://man7.org/linux/man-pages/man3/errno.3.html',
+      'assert.h': 'https://en.cppreference.com/w/c/error/assert',
+      'limits.h': 'https://en.cppreference.com/w/c/types/limits',
+      'time.h': 'https://en.cppreference.com/w/c/chrono',
+      'signal.h': 'https://man7.org/linux/man-pages/man2/signal.2.html',
+      'getopt.h': 'https://man7.org/linux/man-pages/man3/getopt.3.html',
+      'locale.h': 'https://en.cppreference.com/w/c/locale',
+      'wchar.h': 'https://en.cppreference.com/w/c/string/wide',
+      'wctype.h': 'https://en.cppreference.com/w/c/string/wide',
+      'stddef.h': 'https://en.cppreference.com/w/c/types',
+      'inttypes.h': 'https://en.cppreference.com/w/c/types/integer',
+      'stdint.h': 'https://en.cppreference.com/w/c/types/integer',
+      'sys/socket.h': 'https://man7.org/linux/man-pages/man2/socket.2.html',
+      'sys/ioctl.h': 'https://man7.org/linux/man-pages/man2/ioctl.2.html',
+      'sys/time.h': 'https://man7.org/linux/man-pages/man2/gettimeofday.2.html',
+      'sys/resource.h': 'https://man7.org/linux/man-pages/man2/getrlimit.2.html',
+      'sys/mman.h': 'https://man7.org/linux/man-pages/man2/mmap.2.html',
+      'sys/file.h': 'https://man7.org/linux/man-pages/man2/flock.2.html',
+      'sys/param.h': 'https://man7.org/linux/man-pages/man0/sys_param.h.0p.html',
+      'pwd.h': 'https://man7.org/linux/man-pages/man3/pwd.3.html',
+      'grp.h': 'https://man7.org/linux/man-pages/man3/getgrgid.3.html',
+      'utime.h': 'https://man7.org/linux/man-pages/man2/utime.2.html',
+      'utmpx.h': 'https://man7.org/linux/man-pages/man5/utmpx.5.html',
+      'termios.h': 'https://man7.org/linux/man-pages/man3/termios.3.html',
+      'sys/select.h': 'https://man7.org/linux/man-pages/man2/select.2.html',
+      'poll.h': 'https://man7.org/linux/man-pages/man2/poll.2.html',
+      'sys/poll.h': 'https://man7.org/linux/man-pages/man2/poll.2.html',
+      'sys/uio.h': 'https://man7.org/linux/man-pages/man2/readv.2.html',
+      'sys/xattr.h': 'https://man7.org/linux/man-pages/man2/setxattr.2.html',
+      'sys/acl.h': 'https://man7.org/linux/man-pages/man3/acl.3.html',
+      'acl/libacl.h': 'https://man7.org/linux/man-pages/man3/acl.3.html',
+      'attr/xattr.h': 'https://man7.org/linux/man-pages/man2/setxattr.2.html',
+      'selinux/selinux.h': 'https://man7.org/linux/man-pages/man3/selinux.3.html',
+      'sys/sysmacros.h': 'https://man7.org/linux/man-pages/man3/major.3.html',
+      'sys/vfs.h': 'https://man7.org/linux/man-pages/man2/statfs.2.html',
+      'sys/statvfs.h': 'https://man7.org/linux/man-pages/man2/statvfs.2.html',
+      'arpa/inet.h': 'https://man7.org/linux/man-pages/man3/inet_addr.3.html',
+      'netdb.h': 'https://man7.org/linux/man-pages/man3/getaddrinfo.3.html',
+      'netinet/in.h': 'https://man7.org/linux/man-pages/man7/ip.7.html',
+      'sys/utsname.h': 'https://man7.org/linux/man-pages/man2/uname.2.html',
+      'sys/sysinfo.h': 'https://man7.org/linux/man-pages/man2/sysinfo.2.html',
+      'syslog.h': 'https://man7.org/linux/man-pages/man3/syslog.3.html',
+      'shadow.h': 'https://man7.org/linux/man-pages/man3/shadow.3.html',
+      'sys/user.h': 'https://man7.org/linux/man-pages/man2/getuid.2.html',
+      'sys/mount.h': 'https://man7.org/linux/man-pages/man2/mount.2.html',
+      'mntent.h': 'https://man7.org/linux/man-pages/man3/setmntent.3.html',
+      'sys/sendfile.h': 'https://man7.org/linux/man-pages/man2/sendfile.2.html',
+      'sys/capability.h': 'https://man7.org/linux/man-pages/man7/capabilities.7.html',
+      'linux/fs.h': 'https://man7.org/linux/man-pages/man2/ioctl_ficlone.2.html',
+      'linux/fiemap.h': 'https://man7.org/linux/man-pages/man2/ioctl_ficlone.2.html',
+      'sys/ioctl.h': 'https://man7.org/linux/man-pages/man2/ioctl.2.html',
+      'linux/capability.h': 'https://man7.org/linux/man-pages/man7/capabilities.7.html',
+      'sys/timex.h': 'https://man7.org/linux/man-pages/man2/adjtimex.2.html',
+      'sys/ptrace.h': 'https://man7.org/linux/man-pages/man2/ptrace.2.html',
+      'sched.h': 'https://man7.org/linux/man-pages/man2/sched_setaffinity.2.html',
+      'sys/resource.h': 'https://man7.org/linux/man-pages/man2/setrlimit.2.html',
+      'sys/time.h': 'https://man7.org/linux/man-pages/man2/gettimeofday.2.html',
+      'sys/times.h': 'https://man7.org/linux/man-pages/man2/times.2.html',
+      'sys/stat.h': 'https://man7.org/linux/man-pages/man2/stat.2.html',
+      'sys/unistd.h': 'https://man7.org/linux/man-pages/man0/unistd.h.0p.html',
+      'sys/wait.h': 'https://man7.org/linux/man-pages/man2/wait.2.html',
+      'termios.h': 'https://man7.org/linux/man-pages/man3/termios.3.html',
+      'time.h': 'https://en.cppreference.com/w/c/chrono',
+      'utime.h': 'https://man7.org/linux/man-pages/man2/utime.2.html',
+      'utmpx.h': 'https://man7.org/linux/man-pages/man5/utmpx.5.html',
+      'wchar.h': 'https://en.cppreference.com/w/c/string/wide',
+      'wctype.h': 'https://en.cppreference.com/w/c/string/wide',
+      // Coreutils-specific headers
+      'system.h': 'https://github.com/andrewh/coreutils/blob/master/src/system.h',
+      'quote.h': 'https://github.com/andrewh/coreutils/blob/master/src/quote.h',
+      'assure.h': 'https://github.com/andrewh/coreutils/blob/master/src/assure.h',
+      'copy.h': 'https://github.com/andrewh/coreutils/blob/master/src/copy.h',
+      'remove.h': 'https://github.com/andrewh/coreutils/blob/master/src/remove.h',
+      'chown-core.h': 'https://github.com/andrewh/coreutils/blob/master/src/chown-core.h',
+      'src/system.h': 'https://github.com/andrewh/coreutils/blob/master/src/system.h',
+      'src/quote.h': 'https://github.com/andrewh/coreutils/blob/master/src/quote.h',
+      'src/assure.h': 'https://github.com/andrewh/coreutils/blob/master/src/assure.h',
+      'src/copy.h': 'https://github.com/andrewh/coreutils/blob/master/src/copy.h',
+      'src/remove.h': 'https://github.com/andrewh/coreutils/blob/master/src/remove.h',
+      'src/chown-core.h': 'https://github.com/andrewh/coreutils/blob/master/src/chown-core.h',
+    };
+
+    // Mappings for standard library functions
+    const functionLinks = {
+      // I/O functions
+      'printf': 'https://man7.org/linux/man-pages/man3/printf.3.html',
+      'fprintf': 'https://man7.org/linux/man-pages/man3/fprintf.3.html',
+      'sprintf': 'https://man7.org/linux/man-pages/man3/sprintf.3.html',
+      'snprintf': 'https://man7.org/linux/man-pages/man3/snprintf.3.html',
+      'puts': 'https://man7.org/linux/man-pages/man3/puts.3.html',
+      'fputs': 'https://man7.org/linux/man-pages/man3/fputs.3.html',
+      'putchar': 'https://man7.org/linux/man-pages/man3/putchar.3.html',
+      'fputc': 'https://man7.org/linux/man-pages/man3/fputc.3.html',
+      'scanf': 'https://man7.org/linux/man-pages/man3/scanf.3.html',
+      'fscanf': 'https://man7.org/linux/man-pages/man3/fscanf.3.html',
+      'sscanf': 'https://man7.org/linux/man-pages/man3/sscanf.3.html',
+      'fread': 'https://man7.org/linux/man-pages/man3/fread.3.html',
+      'fwrite': 'https://man7.org/linux/man-pages/man3/fwrite.3.html',
+      'fopen': 'https://man7.org/linux/man-pages/man3/fopen.3.html',
+      'fclose': 'https://man7.org/linux/man-pages/man3/fclose.3.html',
+      'fflush': 'https://man7.org/linux/man-pages/man3/fflush.3.html',
+      'fileno': 'https://man7.org/linux/man-pages/man3/fileno.3.html',
+      'fdopen': 'https://man7.org/linux/man-pages/man3/fdopen.3.html',
+      'perror': 'https://man7.org/linux/man-pages/man3/perror.3.html',
+      'feof': 'https://man7.org/linux/man-pages/man3/feof.3.html',
+      'ferror': 'https://man7.org/linux/man-pages/man3/ferror.3.html',
+      'clearerr': 'https://man7.org/linux/man-pages/man3/clearerr.3.html',
+      
+      // String functions
+      'strlen': 'https://man7.org/linux/man-pages/man3/strlen.3.html',
+      'strcpy': 'https://man7.org/linux/man-pages/man3/strcpy.3.html',
+      'strncpy': 'https://man7.org/linux/man-pages/man3/strncpy.3.html',
+      'strcat': 'https://man7.org/linux/man-pages/man3/strcat.3.html',
+      'strncat': 'https://man7.org/linux/man-pages/man3/strncat.3.html',
+      'strcmp': 'https://man7.org/linux/man-pages/man3/strcmp.3.html',
+      'strncmp': 'https://man7.org/linux/man-pages/man3/strncmp.3.html',
+      'strcasecmp': 'https://man7.org/linux/man-pages/man3/strcasecmp.3.html',
+      'strncasecmp': 'https://man7.org/linux/man-pages/man3/strncasecmp.3.html',
+      'strchr': 'https://man7.org/linux/man-pages/man3/strchr.3.html',
+      'strrchr': 'https://man7.org/linux/man-pages/man3/strrchr.3.html',
+      'strstr': 'https://man7.org/linux/man-pages/man3/strstr.3.html',
+      'strdup': 'https://man7.org/linux/man-pages/man3/strdup.3.html',
+      'strndup': 'https://man7.org/linux/man-pages/man3/strndup.3.html',
+      'strtok': 'https://man7.org/linux/man-pages/man3/strtok.3.html',
+      'strtok_r': 'https://man7.org/linux/man-pages/man3/strtok.3.html',
+      'strspn': 'https://man7.org/linux/man-pages/man3/strspn.3.html',
+      'strcspn': 'https://man7.org/linux/man-pages/man3/strcspn.3.html',
+      'memcpy': 'https://man7.org/linux/man-pages/man3/memcpy.3.html',
+      'memmove': 'https://man7.org/linux/man-pages/man3/memmove.3.html',
+      'memcmp': 'https://man7.org/linux/man-pages/man3/memcmp.3.html',
+      'memset': 'https://man7.org/linux/man-pages/man3/memset.3.html',
+      'memchr': 'https://man7.org/linux/man-pages/man3/memchr.3.html',
+      
+      // Memory functions
+      'malloc': 'https://man7.org/linux/man-pages/man3/malloc.3.html',
+      'calloc': 'https://man7.org/linux/man-pages/man3/calloc.3.html',
+      'realloc': 'https://man7.org/linux/man-pages/man3/realloc.3.html',
+      'free': 'https://man7.org/linux/man-pages/man3/free.3.html',
+      'alloca': 'https://man7.org/linux/man-pages/man3/alloca.3.html',
+      
+      // Character functions
+      'isalpha': 'https://man7.org/linux/man-pages/man3/isalpha.3.html',
+      'isdigit': 'https://man7.org/linux/man-pages/man3/isdigit.3.html',
+      'isalnum': 'https://man7.org/linux/man-pages/man3/isalnum.3.html',
+      'isspace': 'https://man7.org/linux/man-pages/man3/isspace.3.html',
+      'islower': 'https://man7.org/linux/man-pages/man3/islower.3.html',
+      'isupper': 'https://man7.org/linux/man-pages/man3/isupper.3.html',
+      'tolower': 'https://man7.org/linux/man-pages/man3/tolower.3.html',
+      'toupper': 'https://man7.org/linux/man-pages/man3/toupper.3.html',
+      'isprint': 'https://man7.org/linux/man-pages/man3/isprint.3.html',
+      'iscntrl': 'https://man7.org/linux/man-pages/man3/iscntrl.3.html',
+      
+      // Math functions
+      'abs': 'https://man7.org/linux/man-pages/man3/abs.3.html',
+      'labs': 'https://man7.org/linux/man-pages/man3/labs.3.html',
+      'llabs': 'https://man7.org/linux/man-pages/man3/llabs.3.html',
+      'div': 'https://man7.org/linux/man-pages/man3/div.3.html',
+      'ldiv': 'https://man7.org/linux/man-pages/man3/ldiv.3.html',
+      'lldiv': 'https://man7.org/linux/man-pages/man3/lldiv.3.html',
+      'atoi': 'https://man7.org/linux/man-pages/man3/atoi.3.html',
+      'atol': 'https://man7.org/linux/man-pages/man3/atol.3.html',
+      'atoll': 'https://man7.org/linux/man-pages/man3/atoll.3.html',
+      'strtol': 'https://man7.org/linux/man-pages/man3/strtol.3.html',
+      'strtoll': 'https://man7.org/linux/man-pages/man3/strtoll.3.html',
+      'strtoul': 'https://man7.org/linux/man-pages/man3/strtoul.3.html',
+      'strtoull': 'https://man7.org/linux/man-pages/man3/strtoull.3.html',
+      'strtof': 'https://man7.org/linux/man-pages/man3/strtof.3.html',
+      'strtod': 'https://man7.org/linux/man-pages/man3/strtod.3.html',
+      'rand': 'https://man7.org/linux/man-pages/man3/rand.3.html',
+      'srand': 'https://man7.org/linux/man-pages/man3/srand.3.html',
+      
+      // File operations
+      'open': 'https://man7.org/linux/man-pages/man2/open.2.html',
+      'close': 'https://man7.org/linux/man-pages/man2/close.2.html',
+      'read': 'https://man7.org/linux/man-pages/man2/read.2.html',
+      'write': 'https://man7.org/linux/man-pages/man2/write.2.html',
+      'lseek': 'https://man7.org/linux/man-pages/man2/lseek.2.html',
+      'stat': 'https://man7.org/linux/man-pages/man2/stat.2.html',
+      'lstat': 'https://man7.org/linux/man-pages/man2/lstat.2.html',
+      'fstat': 'https://man7.org/linux/man-pages/man2/fstat.2.html',
+      'ftruncate': 'https://man7.org/linux/man-pages/man2/ftruncate.2.html',
+      'truncate': 'https://man7.org/linux/man-pages/man2/truncate.2.html',
+      'unlink': 'https://man7.org/linux/man-pages/man2/unlink.2.html',
+      'rename': 'https://man7.org/linux/man-pages/man2/rename.2.html',
+      'link': 'https://man7.org/linux/man-pages/man2/link.2.html',
+      'symlink': 'https://man7.org/linux/man-pages/man2/symlink.2.html',
+      'readlink': 'https://man7.org/linux/man-pages/man2/readlink.2.html',
+      'mkdir': 'https://man7.org/linux/man-pages/man2/mkdir.2.html',
+      'rmdir': 'https://man7.org/linux/man-pages/man2/rmdir.2.html',
+      'chdir': 'https://man7.org/linux/man-pages/man2/chdir.2.html',
+      'getcwd': 'https://man7.org/linux/man-pages/man2/getcwd.2.html',
+      'opendir': 'https://man7.org/linux/man-pages/man3/opendir.3.html',
+      'readdir': 'https://man7.org/linux/man-pages/man3/readdir.3.html',
+      'closedir': 'https://man7.org/linux/man-pages/man3/closedir.3.html',
+      'chmod': 'https://man7.org/linux/man-pages/man2/chmod.2.html',
+      'fchmod': 'https://man7.org/linux/man-pages/man2/fchmod.2.html',
+      'chown': 'https://man7.org/linux/man-pages/man2/chown.2.html',
+      'fchown': 'https://man7.org/linux/man-pages/man2/fchown.2.html',
+      'lchown': 'https://man7.org/linux/man-pages/man2/lchown.2.html',
+      'utime': 'https://man7.org/linux/man-pages/man2/utime.2.html',
+      'utimes': 'https://man7.org/linux/man-pages/man2/utimes.2.html',
+      'access': 'https://man7.org/linux/man-pages/man2/access.2.html',
+      
+      // Process functions
+      'fork': 'https://man7.org/linux/man-pages/man2/fork.2.html',
+      'execve': 'https://man7.org/linux/man-pages/man2/execve.2.html',
+      'execvp': 'https://man7.org/linux/man-pages/man3/exec.3.html',
+      'execlp': 'https://man7.org/linux/man-pages/man3/exec.3.html',
+      'system': 'https://man7.org/linux/man-pages/man3/system.3.html',
+      'exit': 'https://man7.org/linux/man-pages/man3/exit.3.html',
+      '_exit': 'https://man7.org/linux/man-pages/man2/_exit.2.html',
+      'wait': 'https://man7.org/linux/man-pages/man2/wait.2.html',
+      'waitpid': 'https://man7.org/linux/man-pages/man2/waitpid.2.html',
+      'getpid': 'https://man7.org/linux/man-pages/man2/getpid.2.html',
+      'getppid': 'https://man7.org/linux/man-pages/man2/getppid.2.html',
+      'getuid': 'https://man7.org/linux/man-pages/man2/getuid.2.html',
+      'geteuid': 'https://man7.org/linux/man-pages/man2/geteuid.2.html',
+      'getgid': 'https://man7.org/linux/man-pages/man2/getgid.2.html',
+      'getegid': 'https://man7.org/linux/man-pages/man2/getegid.2.html',
+      'setuid': 'https://man7.org/linux/man-pages/man2/setuid.2.html',
+      'seteuid': 'https://man7.org/linux/man-pages/man2/seteuid.2.html',
+      'setgid': 'https://man7.org/linux/man-pages/man2/setgid.2.html',
+      'setegid': 'https://man7.org/linux/man-pages/man2/setegid.2.html',
+      'getpwnam': 'https://man7.org/linux/man-pages/man3/getpwnam.3.html',
+      'getpwuid': 'https://man7.org/linux/man-pages/man3/getpwuid.3.html',
+      'getgrnam': 'https://man7.org/linux/man-pages/man3/getgrnam.3.html',
+      'getgrgid': 'https://man7.org/linux/man-pages/man3/getgrgid.3.html',
+      'getenv': 'https://man7.org/linux/man-pages/man3/getenv.3.html',
+      'setenv': 'https://man7.org/linux/man-pages/man3/setenv.3.html',
+      'unsetenv': 'https://man7.org/linux/man-pages/man3/unsetenv.3.html',
+      'putenv': 'https://man7.org/linux/man-pages/man3/putenv.3.html',
+      'gethostname': 'https://man7.org/linux/man-pages/man2/gethostname.2.html',
+      'uname': 'https://man7.org/linux/man-pages/man2/uname.2.html',
+      'gettimeofday': 'https://man7.org/linux/man-pages/man2/gettimeofday.2.html',
+      'time': 'https://man7.org/linux/man-pages/man2/time.2.html',
+      'localtime': 'https://man7.org/linux/man-pages/man3/localtime.3.html',
+      'gmtime': 'https://man7.org/linux/man-pages/man3/gmtime.3.html',
+      'asctime': 'https://man7.org/linux/man-pages/man3/asctime.3.html',
+      'ctime': 'https://man7.org/linux/man-pages/man3/ctime.3.html',
+      'strftime': 'https://man7.org/linux/man-pages/man3/strftime.3.html',
+      'sleep': 'https://man7.org/linux/man-pages/man3/sleep.3.html',
+      'usleep': 'https://man7.org/linux/man-pages/man3/usleep.3.html',
+      'nanosleep': 'https://man7.org/linux/man-pages/man2/nanosleep.2.html',
+      'alarm': 'https://man7.org/linux/man-pages/man2/alarm.2.html',
+      'signal': 'https://man7.org/linux/man-pages/man2/signal.2.html',
+      'sigaction': 'https://man7.org/linux/man-pages/man2/sigaction.2.html',
+      'sigprocmask': 'https://man7.org/linux/man-pages/man2/sigprocmask.2.html',
+      'kill': 'https://man7.org/linux/man-pages/man2/kill.2.html',
+      'raise': 'https://man7.org/linux/man-pages/man3/raise.3.html',
+      'abort': 'https://man7.org/linux/man-pages/man3/abort.3.html',
+      'assert': 'https://man7.org/linux/man-pages/man3/assert.3.html',
+      
+      // Utility functions
+      'exit': 'https://man7.org/linux/man-pages/man3/exit.3.html',
+      'atexit': 'https://man7.org/linux/man-pages/man3/atexit.3.html',
+      'qsort': 'https://man7.org/linux/man-pages/man3/qsort.3.html',
+      'bsearch': 'https://man7.org/linux/man-pages/man3/bsearch.3.html',
+      'getopt': 'https://man7.org/linux/man-pages/man3/getopt.3.html',
+      'getopt_long': 'https://man7.org/linux/man-pages/man3/getopt.3.html',
+      
+      // Gnulib functions
+      'xmalloc': 'https://github.com/coreutils/gnulib/blob/master/lib/xmalloc.c',
+      'xcalloc': 'https://github.com/coreutils/gnulib/blob/master/lib/xmalloc.c',
+      'xrealloc': 'https://github.com/coreutils/gnulib/blob/master/lib/xmalloc.c',
+      'xstrdup': 'https://github.com/coreutils/gnulib/blob/master/lib/xstrdup.c',
+      'xmalloc': 'https://github.com/coreutils/gnulib/blob/master/lib/xmalloc.c',
+      'error': 'https://github.com/coreutils/gnulib/blob/master/lib/error.c',
+      'error_at_line': 'https://github.com/coreutils/gnulib/blob/master/lib/error.c',
+      'quote': 'https://github.com/coreutils/gnulib/blob/master/lib/quotearg.c',
+      'quotearg': 'https://github.com/coreutils/gnulib/blob/master/lib/quotearg.c',
+      'assure': 'https://github.com/andrewh/coreutils/blob/master/src/assure.h',
+    };
+
+    // Link header files
+    document.querySelectorAll('.highlight .cpf').forEach(span => {
+      const text = span.textContent;
+      // Extract header name from <header.h> or "header.h"
+      const match = text.match(/[<"]([a-zA-Z0-9_\-./]+\.h)[>"]/);
+      if (match && headerLinks[match[1]]) {
+        const link = document.createElement('a');
+        link.href = headerLinks[match[1]];
+        link.target = '_blank';
+        link.className = 'code-link code-link-header';
+        link.textContent = text;
+        span.replaceWith(link);
+      }
+    });
+
+    // Link function names
+    // Only link names that are followed by '(' to reduce false positives
+    document.querySelectorAll('.highlight .n').forEach(span => {
+      const name = span.textContent;
+      if (functionLinks[name]) {
+        // Check if next sibling is '(' indicating a function call
+        const next = span.nextSibling;
+        if (next && next.textContent === '(') {
+          const link = document.createElement('a');
+          link.href = functionLinks[name];
+          link.target = '_blank';
+          link.className = 'code-link code-link-function';
+          link.textContent = name;
+          span.replaceWith(link);
+        }
+      }
+    });
+  });
+})();

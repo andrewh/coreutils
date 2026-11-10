@@ -59,7 +59,11 @@ exclude_docs: |
 
 extra_javascript:
   - js/table-sort.js
+  - js/code-links.js
   - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+
+extra_css:
+  - css/extra.css
 
 nav:
   - Home: index.md
