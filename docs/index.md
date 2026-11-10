@@ -1,9 +1,6 @@
 # GNU coreutils internals
 
-These pages explain how the GNU coreutils programs work inside: where the
-code for each program lives, what its main functions do, and which tests
-check it. They are for people who read or change the C sources. They do not
-replace the user manual (`info coreutils`, built from `doc/coreutils.texi`).
+This documentation describes the internal implementation of GNU coreutils programs. Each page documents where a program's code lives, what its key functions do, and which tests verify it. This material is for developers working with the C source code. It complements but does not replace the official user manual, which is available via `info coreutils` and generated from `doc/coreutils.texi`.
 
 !!! note "Status of these notes"
     These notes are not part of upstream GNU coreutils. Each page was checked
